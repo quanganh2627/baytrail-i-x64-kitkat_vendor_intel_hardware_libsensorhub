@@ -816,11 +816,11 @@ exit:
 
 int sensor_hub_is_streaming()
 {
-  char buf[256];
+  char buf[MAX_STR];
   int result;
   
-  // Sensor hub should be locked by calling function
-  sensor_hub_read_node("sensor_hub/start_streaming", buf, 1);
+  /* Sensor hub should be locked by calling function */
+  sensor_hub_read_node("sensor_hub/start_streaming", buf, MAX_STR);
   sscanf(buf, "%d", &result);
   return result;
 }
