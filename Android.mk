@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-ifneq ($(TARGET_PRODUCT),sim)
+ifneq (,$(findstring $(CUSTOM_BOARD), mfld_pr1))
 
 include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
