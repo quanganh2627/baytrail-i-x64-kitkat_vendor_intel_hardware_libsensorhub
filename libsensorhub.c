@@ -604,14 +604,13 @@ again:
     fds[0].fd = fd;
     fds[0].events = POLLPRI;
     
-    LOGV("blocked for data");
+    LOGV("get_streaming_data_size blocked for data");
     /* blocked for data */
     ret = poll(fds, 1, -1);
     if (ret <= 0) {
       LOGE("Poll error: ret is %d", ret);
       goto close;
     }
-    
     goto again;
   }
   
@@ -658,7 +657,7 @@ int sensor_hub_get_streaming_data(int sensor_id, char *buf, size_t size, int tim
 		goto close;
 	}
 again:
-        lseek(fd, 0, SEEK_SET);
+        lseek(fd2, 0, SEEK_SET);
 	ret = read(fd2, tmp, MAX_STR);
 	if (ret <= 0)
 		goto close1;
