@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-ifneq (,$(findstring $(CUSTOM_BOARD), mfld_pr1))
+ifeq ($(strip $(BOARD_USE_SENSOR_HUB)),true)
 
 include $(CLEAR_VARS)
 LOCAL_PRELINK_MODULE := false
