@@ -82,7 +82,8 @@ int is_first_instance()
 	fd = open("/data/pids", 0);
 
 	read(fd, buf, 8);
-
+	/* To avoid the buffer overflow */
+	buf[7] = '\0';
 	count = atoi(buf);
 
 	close(fd);
