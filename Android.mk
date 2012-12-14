@@ -1,22 +1,6 @@
+ifeq ($(TARGET_BOARD_PLATFORM),merrifield)
+
 LOCAL_PATH := $(call my-dir)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := psh.bin
-LOCAL_MODULE_OWNER := intel
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/firmware
-LOCAL_SRC_FILES := $(LOCAL_MODULE)
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := psh.bin.rc121130
-LOCAL_MODULE_OWNER := intel
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/firmware
-LOCAL_SRC_FILES := $(LOCAL_MODULE)
-include $(BUILD_PREBUILT)
 
 #
 # sensorhubd - sensorhub daemon
@@ -128,3 +112,4 @@ LOCAL_MODULE    := event_notification
 
 include $(BUILD_EXECUTABLE)
 
+endif
