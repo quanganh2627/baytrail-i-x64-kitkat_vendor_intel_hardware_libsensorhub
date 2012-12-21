@@ -59,7 +59,23 @@ typedef enum {
 	PROP_PEDOMETER_START = 20,
 	PROP_PEDOMETER_SAMPLING = 21,
 	PROP_PEDOMETER_END = 40,
+
+	PROP_ACT_START = 40,
+	PROP_ACT_MODE,
+	PROP_ACT_CLSMASK,
+	PROP_ACT_N,
+	PROP_ACT_END = 60,
+
+	PROP_GFLICK_START = 60,
+	PROP_GFLICK_CLSMASK,
+	PROP_GFLICK_SENSITIVITY,
+	PROP_GFLICK_END = 80,
 } property_type;
+
+typedef enum {
+	PROP_ACT_MODE_NCYCLE,
+	PROP_ACT_MODE_ONCHANGE
+} property_act_mode;
 
 typedef enum {
 	STOP_WHEN_SCREEN_OFF = 0,
@@ -117,6 +133,9 @@ error_t psh_clear_event(handle_t handle);
 
 /* 0 means psh_add_event() has not been called */
 short psh_get_event_id(handle_t handle);
+
+/* set properties */
+error_t psh_set_property(handle_t handle, property_type prop_type, void *value);
 
 /* data format of each sensor type */
 struct accel_data {

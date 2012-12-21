@@ -645,6 +645,12 @@ error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 	/* pedometer */
 	if ((sensor_type == SENSOR_PEDOMETER) && (prop_type > PROP_PEDOMETER_START) && (prop_type < PROP_PEDOMETER_END))
 		goto process;
+	else if ((sensor_type == SENSOR_ACTIVITY) && (prop_type > PROP_ACT_START) && (prop_type < PROP_ACT_END))
+		goto process;
+	else if ((sensor_type == SENSOR_GESTURE_FLICK)
+							&& (prop_type > PROP_GFLICK_START)
+							&& (prop_type < PROP_GFLICK_END))
+		goto process;
 
 	return ERROR_WRONG_PARAMETER;
 
@@ -653,8 +659,19 @@ process:
 	cmd.cmd = CMD_SET_PROPERTY;
 	cmd.parameter = prop_type;
 
-	if ((prop_type == PROP_STOP_REPORTING) || (prop_type == PROP_PEDOMETER_SAMPLING))
+	switch (prop_type) {
+	case PROP_STOP_REPORTING:
+	case PROP_PEDOMETER_SAMPLING:
+	case PROP_ACT_MODE:
+	case PROP_ACT_CLSMASK:
+	case PROP_ACT_N:
+	case PROP_GFLICK_CLSMASK:
+	case PROP_GFLICK_SENSITIVITY:
 		cmd.parameter1 = (int)(*(int *)(value));
+		break;
+	default:
+		break;
+	}
 
 	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
 	if (ret <= 0)
