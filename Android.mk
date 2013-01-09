@@ -81,27 +81,6 @@ LOCAL_MODULE := sensorhub_client
 include $(BUILD_EXECUTABLE)
 
 #
-# libPSHSensorCal_JNI - calibration API for JNI
-#
-include $(CLEAR_VARS)
-
-LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)
-
-LOCAL_MODULE_TAGS := eng
-
-LOCAL_C_INCLUDES += $(LOCAL_PATH)
-
-LOCAL_SHARED_LIBRARIES += libsensorhub liblog libcutils libutils
-
-LOCAL_SRC_FILES := src/jni_lib/psh_sensor_calibration_jni.cpp
-
-LOCAL_MODULE := libPSHSensorCal_JNI
-
-LOCAL_MODULE_TAGS := optional
-
-include $(BUILD_SHARED_LIBRARY)
-
-#
 # test.c from Alek
 #
 include $(CLEAR_VARS)
