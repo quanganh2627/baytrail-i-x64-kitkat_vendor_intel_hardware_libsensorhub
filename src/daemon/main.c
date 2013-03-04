@@ -349,8 +349,7 @@ static int buffer_delay_arbiter(psh_sensor_t sensor_type,
 	return data1;
 }
 
-static int sensor_type_to_sensor_id[SENSOR_MAX] = {1, 2, 3, 4, 5, 6, 102, 104,
-						103, 107, 111, 108, 110, 109, 112, 113, 105, 114};
+static int sensor_type_to_sensor_id[SENSOR_MAX] = { 0 };
 enum resp_type {
 	RESP_CMD_ACK,
 	RESP_GET_TIME,
@@ -1192,7 +1191,7 @@ static void reset_sensorhub()
 
 		log_message(DEBUG, "magic_string is %s \n", magic_string);
 
-		if (strstr(magic_string, "11A4") != NULL)
+		if ((strstr(magic_string, "11A4") != NULL) || (strstr(magic_string, "psh") != NULL))
 			break;
 	}
 
