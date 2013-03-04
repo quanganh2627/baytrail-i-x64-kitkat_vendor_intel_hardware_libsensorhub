@@ -1,4 +1,4 @@
-ifeq ($(TARGET_BOARD_PLATFORM),merrifield)
+ifeq ($(ENABLE_SENSOR_HUB),true)
 
 LOCAL_PATH := $(call my-dir)
 
