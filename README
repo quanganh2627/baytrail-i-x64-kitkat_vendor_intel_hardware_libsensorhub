@@ -10,12 +10,12 @@ This doc includes,
     - the hacking way of launching sensorhubd automatically during system boot
 
 1 the instructions of getting code
-    1.1 cd <root-of-Android-source-tree>/hardware/intel/
+    1.1 cd <root-of-Android-source-tree>/vendor/intel/hardware/
     1.2 git clone git@shsrv888.sh.intel.com:libsensorhub.git ./sensorhub
 
 2 The instructions of compiling and installing sensord, libsensorhub and test case
     2.1 compile
-        - cd <root-of-Android-source-tree>/hardware/intel/sensorhub
+        - cd <root-of-Android-source-tree>/vendor/intel/hardware/sensorhub
         - mm
     2.2 install
         - adb remount
@@ -27,7 +27,7 @@ This doc includes,
 3 The instructions of running sensorhubd
     3.1 prerequisite
         - cd <root-of-Android-source-tree>
-        - disable accel sensor and gyro sensor driver by commenting out CONFIG_SENSORS_LIS3DH_ACC and CONFIG_SENSORS_MPU3050 in hardware/intel/linux-2.6/drivers/hwmon/Makefile
+        - disable accel sensor and gyro sensor driver by commenting out CONFIG_SENSORS_LIS3DH_ACC and CONFIG_SENSORS_MPU3050 in kernel/drivers/hwmon/Makefile
         - make boottarball; adb reboot recovery
         - cd out/target/product/mfld_pr2/
         - fastboot flash boot boot.bin
