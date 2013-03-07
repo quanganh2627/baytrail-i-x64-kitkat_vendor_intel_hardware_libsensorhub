@@ -57,7 +57,8 @@ typedef enum {
 	PROP_GENERIC_END = 20,
 
 	PROP_PEDOMETER_START = 20,
-	PROP_PEDOMETER_SAMPLING = 21,
+	PROP_PEDOMETER_MODE = 21,
+	PROP_PEDOMETER_N = 22,
 	PROP_PEDOMETER_END = 40,
 
 	PROP_ACT_START = 40,
@@ -71,6 +72,11 @@ typedef enum {
 	PROP_GFLICK_SENSITIVITY,
 	PROP_GFLICK_END = 80,
 } property_type;
+
+typedef enum {
+	PROP_PEDO_MODE_NCYCLE,
+	PROP_PEDO_MODE_ONCHANGE,
+} property_pedo_mode;
 
 typedef enum {
 	PROP_ACT_MODE_NCYCLE,

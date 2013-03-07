@@ -384,9 +384,17 @@ static void usage()
 					" 18, magnetic heading\n");
 	printf("  -r, --date-rate          unit is Hz\n");
 	printf("  -d, --buffer-delay       unit is ms, i.e. 1/1000 second\n");
+	printf("  -p, --property-set       format: <property id>,<property value>\n");
 	printf("  -h, --help               show this help message \n");
 
 	exit(EXIT_SUCCESS);
+}
+
+int parse_prop_set(char *opt, int *prop, int *val)
+{
+	if (sscanf(opt, "%d,%d", prop, val) == 2)
+		return 0;
+	return -1;
 }
 
 int main(int argc, char **argv)
@@ -395,6 +403,11 @@ int main(int argc, char **argv)
 	error_t ret;
 	int fd, size = 0, cmd_type = -1, sensor_type = -1, data_rate = -1,
 							buffer_delay = -1;
+	int prop_ids[10];
+	int prop_vals[10];
+	int prop_count = 0;
+	int i;
+
 	char buf[512];
 	struct accel_data *p_accel_data;
 
@@ -404,11 +417,12 @@ int main(int argc, char **argv)
 			{"sensor-type", 1, NULL, 't'},
 			{"data-rate", 1, NULL, 'r'},
 			{"buffer-delay", 1, NULL, 'd'},
+			{"property-set", 2, NULL, 'p'},
 			{0, 0, NULL, 0}
 		};
 		int index, o;
 
-		o = getopt_long(argc, argv, "c:t:r::d::", opts, &index);
+		o = getopt_long(argc, argv, "c:t:r::d::p:", opts, &index);
 		if (o == -1)
 			break;
 		switch (o) {
@@ -423,6 +437,16 @@ int main(int argc, char **argv)
 			break;
 		case 'd':
 			buffer_delay = strtod(optarg, NULL);
+			break;
+		case 'p':
+			if (prop_count == sizeof(prop_ids) / sizeof(prop_ids[0]))
+				break;
+			if (parse_prop_set(optarg,
+				prop_ids + prop_count,
+				prop_vals + prop_count)) {
+				usage();
+			}
+			++prop_count;
 			break;
 		case 'h':
 			usage();
@@ -551,6 +575,12 @@ int main(int argc, char **argv)
 				"%d\n", p_mag_heading_data->heading);
 		}
 	} else if (cmd_type == 1) {
+		for (i = 0; i < prop_count; ++i) {
+			printf("%d, %d\n", prop_ids[i], prop_vals[i]);
+			ret = psh_set_property(handle, prop_ids[i], &prop_vals[i]);
+			if (ret != ERROR_NONE)
+				printf("psh_set_property fail for %dth property with code %d\n", i, ret);
+		}
 		if (sensor_type == SENSOR_PEDOMETER)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 2);
 		else

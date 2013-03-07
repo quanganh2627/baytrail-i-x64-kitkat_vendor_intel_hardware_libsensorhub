@@ -8,6 +8,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS += debug
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
@@ -27,7 +28,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)
 
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
@@ -53,7 +54,7 @@ include $(BUILD_COPY_HEADERS)
 #
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
@@ -83,7 +84,7 @@ LOCAL_MODULE := test_alek
 #
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
@@ -100,7 +101,7 @@ include $(BUILD_EXECUTABLE)
 #
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 

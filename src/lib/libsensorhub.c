@@ -661,7 +661,8 @@ process:
 
 	switch (prop_type) {
 	case PROP_STOP_REPORTING:
-	case PROP_PEDOMETER_SAMPLING:
+	case PROP_PEDOMETER_MODE:
+	case PROP_PEDOMETER_N:
 	case PROP_ACT_MODE:
 	case PROP_ACT_CLSMASK:
 	case PROP_ACT_N:
