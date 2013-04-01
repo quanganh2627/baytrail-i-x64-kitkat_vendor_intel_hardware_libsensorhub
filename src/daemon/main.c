@@ -575,7 +575,7 @@ static void get_calibration(psh_sensor_t sensor_type,
 
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d",
 			0,			// tran_id
-			cmd_type_to_cmd_id[CMD_SET_CALIBRATION],	// cmd_id
+			cmd_type_to_cmd_id[CMD_GET_CALIBRATION],	// cmd_id
 			sensor_type_to_sensor_id[sensor_type],	// sensor_id
 			SUBCMD_CALIBRATION_GET);		// sub_cmd
 
@@ -640,31 +640,35 @@ static void set_calibration(psh_sensor_t sensor_type,
 
 		if (sensor_type == SENSOR_CALIBRATION_COMP) {
 			/* For compass_cal, the parameter is:
-			 * minx, maxx, miny, maxy, minz, maxz
+			 * off_x, off_y, off_z, w11, w22, w33, bfield
 			 */
-			p = (unsigned char*)&param->cal_param.compass.minx;
+			p = (unsigned char*)&param->cal_param.compass.off_x;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // Min x
+				p[0], p[1], p[2], p[3]); // off_x
 
-			p = (unsigned char*)&param->cal_param.compass.maxx;
+			p = (unsigned char*)&param->cal_param.compass.off_y;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // Max x
+				p[0], p[1], p[2], p[3]); // off_y
 
-			p = (unsigned char*)&param->cal_param.compass.miny;
+			p = (unsigned char*)&param->cal_param.compass.off_z;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // Min y
+				p[0], p[1], p[2], p[3]); // off_z
 
-			p = (unsigned char*)&param->cal_param.compass.maxy;
+			p = (unsigned char*)&param->cal_param.compass.w11;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // Max y
+				p[0], p[1], p[2], p[3]); // w11
 
-			p = (unsigned char*)&param->cal_param.compass.minz;
+			p = (unsigned char*)&param->cal_param.compass.w22;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // Min z
+				p[0], p[1], p[2], p[3]); // w22
 
-			p = (unsigned char*)&param->cal_param.compass.maxz;
+			p = (unsigned char*)&param->cal_param.compass.w33;
+			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
+				p[0], p[1], p[2], p[3]); // w33
+
+			p = (unsigned char*)&param->cal_param.compass.bfield;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d",
-				p[0], p[1], p[2], p[3]); // Max z
+				p[0], p[1], p[2], p[3]); // bfield
 		} else if (sensor_type == SENSOR_CALIBRATION_GYRO) {
 			/* For gyro_cal, the parameter is:
 			 * x, y, z
@@ -1397,6 +1401,9 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			== sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK]) {
 		sensor_type = SENSOR_GESTURE_FLICK;
 	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_9DOF]) {
+		sensor_type = SENSOR_9DOF;
+	} else if (p_cmd_resp->sensor_id
 			== sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR]) {
 		sensor_type = SENSOR_ROTATION_VECTOR;
 	} else if (p_cmd_resp->sensor_id
@@ -1411,6 +1418,9 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 	} else if (p_cmd_resp->sensor_id
 			== sensor_type_to_sensor_id[SENSOR_MAG_HEADING]) {
 		sensor_type = SENSOR_MAG_HEADING;
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_LPE]) {
+		sensor_type = SENSOR_LPE;
 	} else {
 		log_message(CRITICAL, "unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
 		return;
@@ -1623,6 +1633,13 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 		send_data_to_clients(SENSOR_MAG_HEADING, p_mag_heading_data,
 					p_cmd_resp->data_len,
 					sizeof(struct mag_heading_data));
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_LPE]) {
+		struct lpe_phy_data *p_lpe_phy_data
+			= (struct lpe_phy_data *)p_cmd_resp->buf;
+		send_data_to_clients(SENSOR_LPE, p_lpe_phy_data,
+					p_cmd_resp->data_len,
+					sizeof(struct lpe_phy_data));
 	}
 
 	return;
@@ -1699,6 +1716,9 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 	} else if (p_cmd_resp->sensor_id
 		== sensor_type_to_sensor_id[SENSOR_MAG_HEADING]) {
 		count[SENSOR_MAG_HEADING] += p_cmd_resp->data_len / (sizeof(struct mag_heading_data));
+	} else if (p_cmd_resp->sensor_id
+		== sensor_type_to_sensor_id[SENSOR_LPE]) {
+		count[SENSOR_LPE] += p_cmd_resp->data_len / (sizeof(struct lpe_phy_data));
 	}
 
 	gettimeofday(&tv_current, NULL);
@@ -1723,7 +1743,8 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 				"ORIENT:   %d Hz \n"
 				"9DOF:     %d Hz \n"
 				"PEDOMET:  %d Hz \n"
-				"MAG_H:    %d Hz \n",
+				"MAG_H:    %d Hz \n"
+				"LPE:      %d Hz \n",
 				count[SENSOR_ACCELEROMETER]/interval,
 				count[SENSOR_GYRO]/interval,
 				count[SENSOR_COMP]/interval,
@@ -1740,7 +1761,8 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 				count[SENSOR_ORIENTATION]/interval,
 				count[SENSOR_9DOF]/interval,
 				count[SENSOR_PEDOMETER]/interval,
-				count[SENSOR_MAG_HEADING]/interval);
+				count[SENSOR_MAG_HEADING]/interval,
+				count[SENSOR_LPE]/interval);
 
 		restart = 1;
 	}
@@ -2333,14 +2355,14 @@ static void get_status()
 
 		log_message(DEBUG, "sensor id is %d, name is %s, freq_max is %d \n", snr_info->id, snr_info->name, snr_info->freq_max);
 
-		if (strncmp(snr_info->name, "GYROC", SNR_NAME_MAX_LEN - 1) == 0)
-			continue;
-
 		if (strncmp(snr_info->name, "ACCEL", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ACCELEROMETER] = snr_info->id;
 			sensor_list[SENSOR_ACCELEROMETER].freq_max = snr_info->freq_max;
 			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER],
 									sensor_list[SENSOR_ACCELEROMETER].freq_max);
+		} else if (strncmp(snr_info->name, "GYROC", SNR_NAME_MAX_LEN - 1) == 0) {
+			sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO] = snr_info->id;
+			log_message(DEBUG, "id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO]);
 		} else if (strncmp(snr_info->name, "GYRO", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GYRO] = snr_info->id;
 			sensor_list[SENSOR_GYRO].freq_max = snr_info->freq_max;
@@ -2421,6 +2443,14 @@ static void get_status()
 			sensor_list[SENSOR_PEDOMETER].freq_max = snr_info->freq_max;
 			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PEDOMETER],
 									sensor_list[SENSOR_PEDOMETER].freq_max);
+		} else if (strncmp(snr_info->name, "LPE_P", SNR_NAME_MAX_LEN - 1) == 0) {
+			sensor_type_to_sensor_id[SENSOR_LPE] = snr_info->id;
+			sensor_list[SENSOR_LPE].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LPE],
+									sensor_list[SENSOR_LPE].freq_max);
+		} else if (strncmp(snr_info->name, "COMPC", SNR_NAME_MAX_LEN - 1) == 0) {
+			sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP] = snr_info->id;
+			log_message(DEBUG, "id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP]);
 		}
 	}
 

@@ -26,6 +26,7 @@ typedef enum {
 	SENSOR_CALIBRATION_GYRO,
 	SENSOR_9DOF,
 	SENSOR_PEDOMETER,
+	SENSOR_LPE,
 	SENSOR_MAG_HEADING,
 
 	SENSOR_EVENT,
@@ -221,12 +222,13 @@ struct orientation_data {
 } __attribute__ ((packed));
 
 struct compasscal_info {
-	int minx;
-	int maxx;
-	int miny;
-	int maxy;
-	int minz;
-	int maxz;
+	int off_x;
+	int off_y;
+	int off_z;
+	int w11;
+	int w22;
+	int w33;
+	int bfield;
 } __attribute__ ((packed));
 
 struct gyrocal_info {
@@ -276,6 +278,10 @@ struct pedometer_data {
 
 struct mag_heading_data {
 	int heading;
+} __attribute__ ((packed));
+
+struct lpe_phy_data {
+	unsigned int lpe_msg;
 } __attribute__ ((packed));
 
 #ifdef __cplusplus
