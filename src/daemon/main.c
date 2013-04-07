@@ -1067,6 +1067,14 @@ static void handle_message(int fd, char *message)
 					(hello_with_sensor_type_event *)message;
 		psh_sensor_t sensor_type =
 					p_hello_with_sensor_type->sensor_type;
+
+		if ((sensor_type > SENSOR_MAX) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
+			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
+			hello_with_sensor_type_ack.session_id = 0;
+			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
+			log_message(CRITICAL, "handle_message(): sensor type %d not supported \n", sensor_type);
+			return;
+		}
 		session_id_t session_id = allocate_session_id();
 
 		/* allocate session ID and return it to client;
