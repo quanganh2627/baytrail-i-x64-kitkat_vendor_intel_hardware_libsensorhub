@@ -1203,7 +1203,9 @@ static void reset_sensorhub()
 
 		log_message(DEBUG, "magic_string is %s \n", magic_string);
 
-		if ((strstr(magic_string, "11A4") != NULL) || (strstr(magic_string, "psh") != NULL))
+		if ((strstr(magic_string, "11A4") != NULL)
+			|| (strstr(magic_string, "psh") != NULL)
+			|| (strstr(magic_string, "SMO91D0:00") != NULL))
 			break;
 	}
 
@@ -1338,7 +1340,10 @@ static void send_data_to_clients(psh_sensor_t sensor_type, void *data,
 				|| (sensor_type == SENSOR_GS)
 				|| (sensor_type == SENSOR_GESTURE_FLICK)
 				|| (sensor_type == SENSOR_TC)
-				|| (sensor_type == SENSOR_PEDOMETER)) {
+				|| (sensor_type == SENSOR_PEDOMETER)
+				|| (sensor_type == SENSOR_SHAKING)
+				|| (sensor_type == SENSOR_MOVE_DETECT)
+				|| (sensor_type == SENSOR_STAP)) {
 //			write(p_session_state->datafd, data, size);
 			send(p_session_state->datafd, data, size, MSG_NOSIGNAL);
 			continue;
@@ -1409,6 +1414,12 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			== sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK]) {
 		sensor_type = SENSOR_GESTURE_FLICK;
 	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_SHAKING]) {
+		sensor_type = SENSOR_SHAKING;
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_STAP]) {
+		sensor_type = SENSOR_STAP;
+	} else if (p_cmd_resp->sensor_id
 			== sensor_type_to_sensor_id[SENSOR_9DOF]) {
 		sensor_type = SENSOR_9DOF;
 	} else if (p_cmd_resp->sensor_id
@@ -1429,7 +1440,13 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 	} else if (p_cmd_resp->sensor_id
 			== sensor_type_to_sensor_id[SENSOR_LPE]) {
 		sensor_type = SENSOR_LPE;
-	} else {
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_PEDOMETER]) {
+        sensor_type = SENSOR_PEDOMETER;
+    } else if (p_cmd_resp->sensor_id
+            == sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
+        sensor_type = SENSOR_MOVE_DETECT;
+    } else {
 		log_message(CRITICAL, "unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
 		return;
 	}
@@ -1592,6 +1609,20 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 					p_cmd_resp->data_len,
 					sizeof(struct gesture_flick_data));
 	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_SHAKING]) {
+		struct shaking_data *p_shaking_data
+			= (struct shaking_data *)p_cmd_resp->buf;
+		send_data_to_clients(SENSOR_SHAKING, p_shaking_data,
+					p_cmd_resp->data_len,
+					sizeof(struct shaking_data));
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_STAP]) {
+		struct stap_data *p_stap_data
+			= (struct stap_data *)p_cmd_resp->buf;
+		send_data_to_clients(SENSOR_STAP, p_stap_data,
+					p_cmd_resp->data_len,
+					sizeof(struct stap_data));
+	} else if (p_cmd_resp->sensor_id
 			== sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR]) {
 		struct rotation_vector_data *p_rotation_vector_data
 			= (struct rotation_vector_data *)p_cmd_resp->buf;
@@ -1648,6 +1679,13 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 		send_data_to_clients(SENSOR_LPE, p_lpe_phy_data,
 					p_cmd_resp->data_len,
 					sizeof(struct lpe_phy_data));
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
+		struct md_data *p_md_data
+			= (struct md_data *)p_cmd_resp->buf;
+		send_data_to_clients(SENSOR_MOVE_DETECT, p_md_data,
+					p_cmd_resp->data_len,
+					sizeof(struct md_data));
 	}
 
 	return;
@@ -1704,6 +1742,12 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 		== sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK]) {
 		count[SENSOR_GESTURE_FLICK] += p_cmd_resp->data_len / (sizeof(struct gesture_flick_data));
 	} else if (p_cmd_resp->sensor_id
+		== sensor_type_to_sensor_id[SENSOR_SHAKING]) {
+		count[SENSOR_SHAKING] += p_cmd_resp->data_len / (sizeof(struct shaking_data));
+	} else if (p_cmd_resp->sensor_id
+		== sensor_type_to_sensor_id[SENSOR_STAP]) {
+		count[SENSOR_STAP] += p_cmd_resp->data_len / (sizeof(struct stap_data));
+	} else if (p_cmd_resp->sensor_id
 		== sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR]) {
 		count[SENSOR_ROTATION_VECTOR] += p_cmd_resp->data_len / (sizeof(struct rotation_vector_data));
 	} else if (p_cmd_resp->sensor_id
@@ -1727,6 +1771,9 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 	} else if (p_cmd_resp->sensor_id
 		== sensor_type_to_sensor_id[SENSOR_LPE]) {
 		count[SENSOR_LPE] += p_cmd_resp->data_len / (sizeof(struct lpe_phy_data));
+	} else if (p_cmd_resp->sensor_id
+		== sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
+		count[SENSOR_MOVE_DETECT] += p_cmd_resp->data_len / (sizeof(struct md_data));
 	}
 
 	gettimeofday(&tv_current, NULL);
@@ -1752,7 +1799,10 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 				"9DOF:     %d Hz \n"
 				"PEDOMET:  %d Hz \n"
 				"MAG_H:    %d Hz \n"
-				"LPE:      %d Hz \n",
+				"LPE:      %d Hz \n"
+				"SHAKING:  %d Hz \n",
+				"MOVDT:    %d Hz \n",
+				"STAP:     %d Hz \n",
 				count[SENSOR_ACCELEROMETER]/interval,
 				count[SENSOR_GYRO]/interval,
 				count[SENSOR_COMP]/interval,
@@ -1770,7 +1820,10 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 				count[SENSOR_9DOF]/interval,
 				count[SENSOR_PEDOMETER]/interval,
 				count[SENSOR_MAG_HEADING]/interval,
-				count[SENSOR_LPE]/interval);
+				count[SENSOR_LPE]/interval,
+				count[SENSOR_SHAKING]/interval,
+				count[SENSOR_MOVE_DETECT]/interval,
+				count[SENSOR_STAP]/interval);
 
 		restart = 1;
 	}
@@ -2421,6 +2474,16 @@ static void get_status()
 			sensor_list[SENSOR_GESTURE_FLICK].freq_max = snr_info->freq_max;
 			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK],
 									sensor_list[SENSOR_GESTURE_FLICK].freq_max);
+		} else if (strncmp(snr_info->name, "SHAKI", SNR_NAME_MAX_LEN - 1) == 0) {
+			sensor_type_to_sensor_id[SENSOR_SHAKING] = snr_info->id;
+			sensor_list[SENSOR_SHAKING].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_SHAKING],
+									sensor_list[SENSOR_SHAKING].freq_max);
+		} else if (strncmp(snr_info->name, "STAP", SNR_NAME_MAX_LEN - 2) == 0) {
+			sensor_type_to_sensor_id[SENSOR_STAP] = snr_info->id;
+			sensor_list[SENSOR_STAP].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_STAP],
+									sensor_list[SENSOR_STAP].freq_max);
 		} else if (strncmp(snr_info->name, "GRAVI", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GRAVITY] = snr_info->id;
 			sensor_list[SENSOR_GRAVITY].freq_max = snr_info->freq_max;
@@ -2459,7 +2522,12 @@ static void get_status()
 		} else if (strncmp(snr_info->name, "COMPC", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP] = snr_info->id;
 			log_message(DEBUG, "id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP]);
-		}
+		} else if (strncmp(snr_info->name, "MOVDT", SNR_NAME_MAX_LEN - 1) == 0) {
+			sensor_type_to_sensor_id[SENSOR_MOVE_DETECT] = snr_info->id;
+			sensor_list[SENSOR_MOVE_DETECT].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MOVE_DETECT],
+									sensor_list[SENSOR_MOVE_DETECT].freq_max);
+        }
 	}
 
 	gettimeofday(&tv1, NULL);

@@ -218,6 +218,44 @@ static void dump_gesture_flick_data(int fd)
 	}
 }
 
+static void dump_shaking_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct shaking_data *p_shaking_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_shaking_data = (struct shaking_data *)buf;
+		while (size > 0) {
+			printf("shaking data is %d, size is %d \n",
+				p_shaking_data->shaking, size);
+			size = size - sizeof(struct shaking_data);
+			p = p + sizeof(struct shaking_data);
+			p_shaking_data = (struct shaking_data *)p;
+		}
+	}
+}
+
+static void dump_stap_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct stap_data *p_stap_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_stap_data = (struct stap_data *)buf;
+		while (size > 0) {
+			printf("stap data is %d, size is %d \n",
+				p_stap_data->stap, size);
+			size = size - sizeof(struct stap_data);
+			p = p + sizeof(struct stap_data);
+			p_stap_data = (struct stap_data *)p;
+		}
+	}
+}
+
 static void dump_rotation_vector_data(int fd)
 {
 	char buf[512];
@@ -365,6 +403,24 @@ static void dump_mag_heading_data(int fd)
 	}
 }
 
+static void dump_md_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct md_data *p_md_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_md_data = (struct md_data *)buf;
+		while (size > 0) {
+			printf("move detect data is %d\n", p_md_data->state);
+			size = size - sizeof(struct md_data);
+			p = p + sizeof(struct md_data);
+			p_md_data = (struct md_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -381,7 +437,10 @@ static void usage()
 					" 13, orientation;"
 					" 16, 9dof;"
 					" 17, pedometer;"
-					" 18, magnetic heading\n");
+					" 18, magnetic heading;"
+					" 20, shaking;"
+					" 21, move detect"
+					" 22, stap\n");
 	printf("  -r, --date-rate          unit is Hz\n");
 	printf("  -d, --buffer-delay       unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set       format: <property id>,<property value>\n");
@@ -540,6 +599,16 @@ int main(int argc, char **argv)
 					(struct gesture_flick_data *)buf;
 			printf("get_single returns, flick is %d\n",
 					p_gesture_flick_data->flick);
+		} else if (sensor_type == SENSOR_SHAKING) {
+			struct shaking_data *p_shaking_data =
+					(struct shaking_data *)buf;
+			printf("get_single returns, shaking is %d\n",
+					p_shaking_data->shaking);
+		} else if (sensor_type == SENSOR_STAP) {
+			struct stap_data *p_stap_data =
+					(struct stap_data *)buf;
+			printf("get_single returns, stap is %d\n",
+					p_stap_data->stap);
 		} else if (sensor_type == SENSOR_ROTATION_VECTOR) {
 			struct rotation_vector_data *p_rotation_vector_data =
 					(struct rotation_vector_data *)buf;
@@ -625,6 +694,12 @@ int main(int argc, char **argv)
 			dump_pedometer_data(fd);
 		else if (sensor_type == SENSOR_MAG_HEADING)
 			dump_mag_heading_data(fd);
+		else if (sensor_type == SENSOR_SHAKING)
+			dump_shaking_data(fd);
+		else if (sensor_type == SENSOR_MOVE_DETECT)
+			dump_md_data(fd);
+		else if (sensor_type == SENSOR_STAP)
+			dump_stap_data(fd);
 	}
 //	sleep(200);
 

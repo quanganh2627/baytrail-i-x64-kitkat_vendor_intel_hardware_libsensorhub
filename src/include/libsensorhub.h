@@ -26,8 +26,11 @@ typedef enum {
 	SENSOR_CALIBRATION_GYRO,
 	SENSOR_9DOF,
 	SENSOR_PEDOMETER,
-	SENSOR_LPE,
 	SENSOR_MAG_HEADING,
+	SENSOR_LPE,
+	SENSOR_SHAKING,
+	SENSOR_MOVE_DETECT,
+	SENSOR_STAP,
 
 	SENSOR_EVENT,
 	SENSOR_MAX
@@ -70,8 +73,17 @@ typedef enum {
 
 	PROP_GFLICK_START = 60,
 	PROP_GFLICK_CLSMASK,
-	PROP_GFLICK_SENSITIVITY,
+	PROP_GFLICK_LEVEL,
 	PROP_GFLICK_END = 80,
+
+	PROP_SHAKING_START = 80,
+	PROP_SHAKING_SENSITIVITY,
+	PROP_SHAKING_END = 100,
+
+	PROP_STAP_START = 100,
+	PROP_STAP_CLSMASK,
+	PROP_STAP_LEVEL,
+	PROP_STAP_END = 120,
 } property_type;
 
 typedef enum {
@@ -180,7 +192,7 @@ struct als_raw_data {
 
 struct phy_activity_data {
 	short len;
-	short values[32];
+	short values[64];
 } __attribute__ ((packed));
 
 struct gs_data {
@@ -194,6 +206,14 @@ struct ps_phy_data {
 
 struct gesture_flick_data {
 	short flick;
+} __attribute__ ((packed));
+
+struct shaking_data {
+	short shaking;
+} __attribute__ ((packed));
+
+struct stap_data {
+	short stap;
 } __attribute__ ((packed));
 
 struct rotation_vector_data {
@@ -282,6 +302,14 @@ struct mag_heading_data {
 
 struct lpe_phy_data {
 	unsigned int lpe_msg;
+} __attribute__ ((packed));
+
+#define MD_STATE_UNCHANGE 0
+#define MD_STATE_MOVE 1
+#define MD_STATE_STILL 2
+
+struct md_data {
+	short state;
 } __attribute__ ((packed));
 
 #ifdef __cplusplus
