@@ -116,6 +116,11 @@ typedef struct {
 
 static sensor_state_t sensor_list[SENSOR_MAX];
 
+#define MERRIFIELD 0
+#define BAYTRAIL 1
+
+char platform;
+
 /* Daemonize the sensorhubd */
 static void daemonize()
 {
@@ -1203,10 +1208,16 @@ static void reset_sensorhub()
 
 		log_message(DEBUG, "magic_string is %s \n", magic_string);
 
-		if ((strstr(magic_string, "11A4") != NULL)
-			|| (strstr(magic_string, "psh") != NULL)
-			|| (strstr(magic_string, "SMO91D0:00") != NULL))
+		if (strstr(magic_string, "11A4") != NULL) {
+			platform = MERRIFIELD;
 			break;
+		}
+
+		if ((strstr(magic_string, "psh") != NULL)
+			|| (strstr(magic_string, "SMO91D0:00") != NULL)) {
+			platform = BAYTRAIL;
+			break;
+		}
 	}
 
 	log_message(DEBUG, "node_number is %d \n", node_number);
@@ -2594,6 +2605,8 @@ int main(int argc, char **argv)
 	memset(sensor_list, 0, sizeof(sensor_list));
 	while (1) {
 		reset_sensorhub();
+		if (platform == BAYTRAIL)
+			system("/system/bin/fwupdate_script.sh /system/etc/firmware/psh_bk.bin");
 //		sleep(60);
 		setup_psh();
 		get_status();
