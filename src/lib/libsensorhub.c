@@ -651,6 +651,10 @@ error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 							&& (prop_type > PROP_GFLICK_START)
 							&& (prop_type < PROP_GFLICK_END))
 		goto process;
+	else if ((sensor_type == SENSOR_SHAKING) && (prop_type > PROP_SHAKING_START) && (prop_type < PROP_SHAKING_END))
+		goto process;
+	else if ((sensor_type == SENSOR_STAP) && (prop_type > PROP_STAP_START) && (prop_type < PROP_STAP_END))
+		goto process;
 
 	return ERROR_WRONG_PARAMETER;
 
@@ -668,6 +672,9 @@ process:
 	case PROP_ACT_N:
 	case PROP_GFLICK_CLSMASK:
 	case PROP_GFLICK_SENSITIVITY:
+	case PROP_SHAKING_SENSITIVITY:
+	case PROP_STAP_CLSMASK:
+	case PROP_STAP_LEVEL:
 		cmd.parameter1 = (int)(*(int *)(value));
 		break;
 	default:
