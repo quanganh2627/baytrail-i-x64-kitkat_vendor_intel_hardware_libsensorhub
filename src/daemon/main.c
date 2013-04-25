@@ -436,12 +436,12 @@ static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, 
 {
 	char cmd_string[MAX_STRING_SIZE];
 	int size, ret;
-	unsigned char *prop_type_byte = (unsigned char *)&prop_type;
+	unsigned char prop_type_byte = (unsigned char )prop_type;
 	unsigned char *value_byte = (unsigned char *)&value;
 
-	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", 0,
-			cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], 8,
-			prop_type_byte[0], prop_type_byte[1], prop_type_byte[2], prop_type_byte[3], value_byte[0], value_byte[1], value_byte[2], value_byte[3]
+	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d, %d, %d, %d, %d, %d, %d, %d, %d", 0,
+			cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], 5,
+			prop_type_byte, value_byte[0], value_byte[1], value_byte[2], value_byte[3]
 			);
 
 	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
@@ -1811,8 +1811,8 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 				"PEDOMET:  %d Hz \n"
 				"MAG_H:    %d Hz \n"
 				"LPE:      %d Hz \n"
-				"SHAKING:  %d Hz \n",
-				"MOVDT:    %d Hz \n",
+				"SHAKING:  %d Hz \n"
+				"MOVDT:    %d Hz \n"
 				"STAP:     %d Hz \n",
 				count[SENSOR_ACCELEROMETER]/interval,
 				count[SENSOR_GYRO]/interval,
