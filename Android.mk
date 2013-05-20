@@ -35,19 +35,12 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)
 LOCAL_SRC_FILES := src/lib/libsensorhub.c \
 			src/utils/utils.c
 
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/src/include
+
 LOCAL_MODULE := libsensorhub
 
 include $(BUILD_SHARED_LIBRARY)
 
-#
-# copy header file
-#
-include $(CLEAR_VARS)
-
-LOCAL_COPY_HEADERS_TO := libsensorhub
-LOCAL_COPY_HEADERS := src/include/libsensorhub.h
-
-include $(BUILD_COPY_HEADERS)
 
 #
 # sensorhub_client - sensorhub test client
