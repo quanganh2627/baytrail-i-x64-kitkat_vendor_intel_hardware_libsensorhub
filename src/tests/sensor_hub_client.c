@@ -5,6 +5,7 @@
 #include <cutils/log.h>
 
 #include "../include/libsensorhub.h"
+#include "../include/bist.h"
 
 static void dump_accel_data(int fd)
 {
@@ -448,17 +449,17 @@ static void usage()
 	printf("  -t, --sensor-type        0, accel; 1, gyro; 2, compass;"
 					" 3, barometer; 4, ALS; 5, Proximity;"
 					" 6, terminal context;"
-					" 7, physical activity;"
-					" 8, gesture spotting;"
-					" 9, gesture flick;"
-					" 10, rotation vector;"
-					" 11, gravity;"
-					" 12, linear acceleration;"
-					" 13, orientation;"
-					" 16, 9dof;"
-					" 17, pedometer;"
-					" 18, magnetic heading;"
-					" 19, lpe;"
+					" 7, LPE;"
+					" 8, physical activity;"
+					" 9, gesture spotting;"
+					" 10, gesture flick;"
+					" 11, rotation vector;"
+					" 12, gravity;"
+					" 13, linear acceleration;"
+					" 14, orientation;"
+					" 17, 9dof;"
+					" 18, pedometer;"
+					" 19, magnetic heading;"
 					" 20, shaking;"
 					" 21, move detect"
 					" 22, stap\n");
@@ -566,19 +567,19 @@ int main(int argc, char **argv)
 		p_accel_data = (struct accel_data *)buf;
 		size = psh_get_single(handle, buf, 128);
 
-		if (sensor_type == 0) {
+		if (sensor_type == SENSOR_ACCELEROMETER) {
 			struct accel_data *p_accel_data =
 					(struct accel_data *)buf;
 			printf("get_single returns, x, y, z is %d, %d, %d, "
 				"size is %d \n", p_accel_data->x,
 				p_accel_data->y, p_accel_data->z, size);
-		} else if (sensor_type == 1) {
+		} else if (sensor_type == SENSOR_GYRO) {
 			struct gyro_raw_data *p_gyro_raw_data =
 					(struct gyro_raw_data *)buf;
 			printf("get_single returns, x, y, z is %d, %d, %d, "
 				"size is %d \n", p_gyro_raw_data->x,
 				p_gyro_raw_data->y, p_gyro_raw_data->z, size);
-		} else if (sensor_type == 2) {
+		} else if (sensor_type == SENSOR_COMP) {
 			struct compass_raw_data *p_compass_raw_data =
 					(struct compass_raw_data *)buf;
 			printf("get_single returns, calibrated--%d\n x, y, z is %d, %d, %d, "
@@ -587,30 +588,35 @@ int main(int argc, char **argv)
 					p_compass_raw_data->x,
 					p_compass_raw_data->y,
 					p_compass_raw_data->z, size);
-		} else if (sensor_type == 3) {
+		} else if (sensor_type == SENSOR_BARO) {
 			struct baro_raw_data *p_baro_raw_data =
 					(struct baro_raw_data *)buf;
 			printf("get_single returns, baro raw data is %d \n",
 					p_baro_raw_data->p);
-		} else if (sensor_type == 4) {
+		} else if (sensor_type == SENSOR_ALS) {
 			struct als_raw_data *p_als_raw_data =
 					(struct als_raw_data *)buf;
 			printf("get_single returns, ALS raw data is %d\n",
 					p_als_raw_data->lux);
-		} else if (sensor_type == 5) {
+		} else if (sensor_type == SENSOR_PROXIMITY) {
 			struct ps_phy_data  *p_ps_phy_data =
 					(struct ps_phy_data  *)buf;
 			printf("get_single returns, near is %d\n",
 					p_ps_phy_data->near);
-		} else if (sensor_type == 6) {
+		} else if (sensor_type == SENSOR_TC) {
 			struct tc_data *p_tc_data = (struct tc_data *)buf;
 			printf("get_single returns, orien_xy, "
 					"orien_z is %d, %d size is %d \n",
 					p_tc_data->orien_xy,
 					p_tc_data->orien_z, size);
-		} else if (sensor_type == 7) {
+		} else if (sensor_type == SENSOR_LPE) {
+                        struct lpe_phy_data *p_lpe_phy_data =
+                                        (struct lpe_phy_data *)buf;
+                        printf("get_single returns, lpe_msg is "
+                                "%u\n", p_lpe_phy_data->lpe_msg);
+                } else if (sensor_type == SENSOR_ACTIVITY) {
 			printf("activity doesn't support get_single\n");
-		} else if (sensor_type == 8) {
+		} else if (sensor_type == SENSOR_GS) {
 			struct gs_data *p_gs_data =
 					(struct gs_data *)buf;
 			printf("get_single returns, size is %d\n",
@@ -663,11 +669,13 @@ int main(int argc, char **argv)
 					(struct mag_heading_data *)buf;
 			printf("get_single returns, magnetic north heading is "
 				"%d\n", p_mag_heading_data->heading);
-		} else if (sensor_type == SENSOR_LPE) {
-			struct lpe_phy_data *p_lpe_phy_data =
-					(struct lpe_phy_data *)buf;
-			printf("get_single returns, lpe_msg is "
-				"%u\n", p_lpe_phy_data->lpe_msg);
+		} else if (sensor_type == SENSOR_BIST) {
+			int i;
+			struct bist_data *p_bist_data =
+					(struct bist_data *)buf;
+			for (i = 0; i < PHY_SENSOR_MAX_NUM; i ++) {
+				printf("get_single returns, bist_result[%d] is %d \n", i, p_bist_data->result[i]);
+			}
 		}
 	} else if (cmd_type == 1) {
 
@@ -705,23 +713,25 @@ int main(int argc, char **argv)
 
 		fd = psh_get_fd(handle);
 
-		if (sensor_type == 0)
+		if (sensor_type == SENSOR_ACCELEROMETER)
 			dump_accel_data(fd);
-		else if (sensor_type == 1)
+		else if (sensor_type == SENSOR_GYRO)
 			dump_gyro_data(fd);
-		else if (sensor_type == 2)
+		else if (sensor_type == SENSOR_COMP)
 			dump_comp_data(fd);
-		else if (sensor_type == 3)
+		else if (sensor_type == SENSOR_BARO)
 			dump_baro_data(fd);
-		else if (sensor_type == 4)
+		else if (sensor_type == SENSOR_ALS)
 			dump_als_data(fd);
-		else if (sensor_type == 5)
+		else if (sensor_type == SENSOR_PROXIMITY)
 			dump_proximity_data(fd);
-		else if (sensor_type == 6)
+		else if (sensor_type == SENSOR_TC)
 			dump_tc_data(fd);
-		else if (sensor_type == 7)
+		else if (sensor_type == SENSOR_LPE)
+			dump_lpe_data(fd);
+		else if (sensor_type == SENSOR_ACTIVITY)
 			dump_activity_data(fd);
-		else if (sensor_type == 8)
+		else if (sensor_type == SENSOR_GS)
 			dump_gs_data(fd);
 		else if (sensor_type == SENSOR_GESTURE_FLICK)
 			dump_gesture_flick_data(fd);
@@ -745,8 +755,6 @@ int main(int argc, char **argv)
 			dump_md_data(fd);
 		else if (sensor_type == SENSOR_STAP)
 			dump_stap_data(fd);
-		else if (sensor_type == SENSOR_LPE)
-			dump_lpe_data(fd);
 	}
 //	sleep(200);
 

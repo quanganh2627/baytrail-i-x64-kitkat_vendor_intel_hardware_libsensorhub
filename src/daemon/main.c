@@ -21,6 +21,7 @@
 #include "../include/socket.h"
 #include "../include/utils.h"
 #include "../include/message.h"
+#include "../include/bist.h"
 
 #define MAX_STRING_SIZE 256
 
@@ -1453,12 +1454,15 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 		sensor_type = SENSOR_LPE;
 	} else if (p_cmd_resp->sensor_id
 			== sensor_type_to_sensor_id[SENSOR_PEDOMETER]) {
-        sensor_type = SENSOR_PEDOMETER;
-    } else if (p_cmd_resp->sensor_id
-            == sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
-        sensor_type = SENSOR_MOVE_DETECT;
-    } else {
-		log_message(CRITICAL, "unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
+		sensor_type = SENSOR_PEDOMETER;
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
+		sensor_type = SENSOR_MOVE_DETECT;
+	} else if (p_cmd_resp->sensor_id
+			== sensor_type_to_sensor_id[SENSOR_BIST]) {
+		sensor_type = SENSOR_BIST;
+	} else {
+		log_message(CRITICAL, "dispatch_get_single(): unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
 		return;
 	}
 
@@ -1490,6 +1494,26 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 
 			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
 						+ p_cmd_resp->data_len + 2, 0);
+		} else if (sensor_type == SENSOR_BIST) {
+			int i;
+			p_cmd_ack = malloc(sizeof(cmd_ack_event) + sizeof(struct bist_data));
+			if (p_cmd_ack == NULL) {
+				log_message(CRITICAL, "dispatch_get_single(): malloc failed \n");
+				goto fail;
+			}
+			p_cmd_ack->event_type = EVENT_CMD_ACK;
+			p_cmd_ack->ret = SUCCESS;
+			p_cmd_ack->buf_len = sizeof(struct bist_data);
+
+			p_cmd_resp->buf[0] = BIST_RET_NOSUPPORT;
+			for (i = 0; i < PHY_SENSOR_MAX_NUM; i++) {
+				if (sensor_type_to_sensor_id[i] <= PHY_SENSOR_MAX_NUM)
+					p_cmd_ack->buf[i] = p_cmd_resp->buf[sensor_type_to_sensor_id[i]];
+				else
+					p_cmd_ack->buf[i] = BIST_RET_NOSUPPORT;
+			}
+			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
+						+ sizeof(struct bist_data), 0);
 		} else {
 			p_cmd_ack = malloc(sizeof(cmd_ack_event)
 						+ p_cmd_resp->data_len);
@@ -1999,7 +2023,7 @@ static void dispatch_data()
 				p_cmd_resp->cmd_type, p_cmd_resp->sensor_id,
 				p_cmd_resp->data_len);
 
-		if (p_cmd_resp->cmd_type == RESP_GET_SINGLE)
+		if ((p_cmd_resp->cmd_type == RESP_GET_SINGLE) || (p_cmd_resp->cmd_type == RESP_BIST_RESULT))
 			dispatch_get_single(p_cmd_resp);
 		else if (p_cmd_resp->cmd_type == RESP_STREAMING) {
 			dispatch_streaming(p_cmd_resp);
@@ -2547,7 +2571,12 @@ static void get_status()
 			sensor_list[SENSOR_MOVE_DETECT].freq_max = snr_info->freq_max;
 			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MOVE_DETECT],
 									sensor_list[SENSOR_MOVE_DETECT].freq_max);
-        }
+		} else if (strncmp(snr_info->name, "BIST", SNR_NAME_MAX_LEN - 2) == 0) {
+			sensor_type_to_sensor_id[SENSOR_BIST] = snr_info->id;
+			sensor_list[SENSOR_BIST].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BIST],
+									sensor_list[SENSOR_BIST].freq_max);
+		}
 	}
 
 	gettimeofday(&tv1, NULL);

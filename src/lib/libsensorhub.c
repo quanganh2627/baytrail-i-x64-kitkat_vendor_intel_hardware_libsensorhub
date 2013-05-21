@@ -9,6 +9,7 @@
 #include "../include/message.h"
 #include "../include/socket.h"
 #include "../include/utils.h"
+#include "../include/bist.h"
 
 #define MAX_DATA_RATE 100
 
@@ -657,5 +658,23 @@ error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 	if (p_cmd_ack->ret != SUCCESS)
 		return ERROR_DATA_RATE_NOT_SUPPORTED;
 
+	return ERROR_NONE;
+}
+
+error_t run_bist(struct bist_data *bist)
+{
+	handle_t handle;
+	int size;
+
+	handle = psh_open_session(SENSOR_BIST);
+	if (handle == NULL)
+		return ERROR_NOT_AVAILABLE;
+
+	size = psh_get_single(handle, bist, sizeof(struct bist_data));
+	if (size <= 0)
+		return ERROR_NOT_AVAILABLE;
+
+
+	psh_close_session(handle);
 	return ERROR_NONE;
 }

@@ -73,6 +73,23 @@ LOCAL_SRC_FILES := src/tests/test.c
 LOCAL_MODULE := test_alek
 
 #
+# bist_test.c
+#
+include $(CLEAR_VARS)
+
+LOCAL_MODULE_TAGS := eng
+
+LOCAL_C_INCLUDES += $(LOCAL_PATH)
+
+LOCAL_SRC_FILES := src/tests/bist_test.c
+
+LOCAL_SHARED_LIBRARIES += libsensorhub
+
+LOCAL_MODULE := bist_test
+
+include $(BUILD_EXECUTABLE)
+
+#
 # compass calibration test.
 #
 include $(CLEAR_VARS)
