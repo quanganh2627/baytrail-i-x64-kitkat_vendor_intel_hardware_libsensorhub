@@ -436,12 +436,12 @@ static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, 
 {
 	char cmd_string[MAX_STRING_SIZE];
 	int size, ret;
-	unsigned char *prop_type_byte = (unsigned char *)&prop_type;
+	unsigned char prop_type_byte = (unsigned char )prop_type;
 	unsigned char *value_byte = (unsigned char *)&value;
 
-	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d", 0,
-			cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], 8,
-			prop_type_byte[0], prop_type_byte[1], prop_type_byte[2], prop_type_byte[3], value_byte[0], value_byte[1], value_byte[2], value_byte[3]
+	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d, %d, %d, %d, %d, %d, %d, %d, %d", 0,
+			cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], 5,
+			prop_type_byte, value_byte[0], value_byte[1], value_byte[2], value_byte[3]
 			);
 
 	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
@@ -1811,8 +1811,8 @@ static void debug_data_rate(struct cmd_resp *p_cmd_resp)
 				"PEDOMET:  %d Hz \n"
 				"MAG_H:    %d Hz \n"
 				"LPE:      %d Hz \n"
-				"SHAKING:  %d Hz \n",
-				"MOVDT:    %d Hz \n",
+				"SHAKING:  %d Hz \n"
+				"MOVDT:    %d Hz \n"
 				"STAP:     %d Hz \n",
 				count[SENSOR_ACCELEROMETER]/interval,
 				count[SENSOR_GYRO]/interval,
@@ -1950,7 +1950,7 @@ static void dispatch_data()
 {
 	static char *buf = NULL;
 	char *p;
-	int ret, data_size;
+	int ret, data_size, left = 0;
 	struct cmd_resp *p_cmd_resp;
 	struct timeval tv, tv1;
 
@@ -1973,11 +1973,20 @@ static void dispatch_data()
 	if (ret <= 0)
 		return;
 
-//	sscanf(buf, "%d", &data_size);
+	sscanf(buf, "%d", &data_size);
 
-	ret = read(datafd, buf, 128 * 1024);
-	if (ret <= 0)
-		return;
+	left = data_size;
+
+	/* sysfs has limitation that max 4K data can be returned at once */
+	while (left > 0) {
+		ret = read(datafd, buf + data_size - left, left);
+		if (ret <= 0)
+			return;
+
+		left = left - ret;
+	}
+
+	ret = data_size;
 
 //	log_message(DEBUG, "data_size is: %d, read() return value is %d \n",
 //							data_size, ret);

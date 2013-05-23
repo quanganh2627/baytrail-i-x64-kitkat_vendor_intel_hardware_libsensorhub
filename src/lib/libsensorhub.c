@@ -636,50 +636,10 @@ error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	/* generic property */
-	if ((prop_type > PROP_GENERIC_START) && (prop_type < PROP_GENERIC_END))
-		goto process;
-
-	sensor_type = session_context->sensor_type;
-
-	/* pedometer */
-	if ((sensor_type == SENSOR_PEDOMETER) && (prop_type > PROP_PEDOMETER_START) && (prop_type < PROP_PEDOMETER_END))
-		goto process;
-	else if ((sensor_type == SENSOR_ACTIVITY) && (prop_type > PROP_ACT_START) && (prop_type < PROP_ACT_END))
-		goto process;
-	else if ((sensor_type == SENSOR_GESTURE_FLICK)
-							&& (prop_type > PROP_GFLICK_START)
-							&& (prop_type < PROP_GFLICK_END))
-		goto process;
-	else if ((sensor_type == SENSOR_SHAKING) && (prop_type > PROP_SHAKING_START) && (prop_type < PROP_SHAKING_END))
-		goto process;
-	else if ((sensor_type == SENSOR_STAP) && (prop_type > PROP_STAP_START) && (prop_type < PROP_STAP_END))
-		goto process;
-
-	return ERROR_WRONG_PARAMETER;
-
-process:
 	cmd.event_type = EVENT_CMD;
 	cmd.cmd = CMD_SET_PROPERTY;
 	cmd.parameter = prop_type;
-
-	switch (prop_type) {
-	case PROP_STOP_REPORTING:
-	case PROP_PEDOMETER_MODE:
-	case PROP_PEDOMETER_N:
-	case PROP_ACT_MODE:
-	case PROP_ACT_CLSMASK:
-	case PROP_ACT_N:
-	case PROP_GFLICK_CLSMASK:
-	case PROP_GFLICK_LEVEL:
-	case PROP_SHAKING_SENSITIVITY:
-	case PROP_STAP_CLSMASK:
-	case PROP_STAP_LEVEL:
-		cmd.parameter1 = (int)(*(int *)(value));
-		break;
-	default:
-		break;
-	}
+	cmd.parameter1 = (int)(*(int *)(value));
 
 	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
 	if (ret <= 0)

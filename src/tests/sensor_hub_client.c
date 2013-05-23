@@ -403,6 +403,26 @@ static void dump_mag_heading_data(int fd)
 	}
 }
 
+static void dump_lpe_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct lpe_phy_data *p_lpe_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_lpe_data = (struct lpe_phy_data *)buf;
+		while (size > 0) {
+			printf("lpe_msg is %u, size is %d\n",
+				p_lpe_data->lpe_msg, size);
+			size = size - sizeof(struct lpe_phy_data);
+			p = p + sizeof(struct lpe_phy_data);
+			p_lpe_data = (struct lpe_phy_data *)p;
+		}
+	}
+
+}
+
 static void dump_md_data(int fd)
 {
 	char buf[512];
@@ -438,6 +458,7 @@ static void usage()
 					" 16, 9dof;"
 					" 17, pedometer;"
 					" 18, magnetic heading;"
+					" 19, lpe;"
 					" 20, shaking;"
 					" 21, move detect"
 					" 22, stap\n");
@@ -642,21 +663,45 @@ int main(int argc, char **argv)
 					(struct mag_heading_data *)buf;
 			printf("get_single returns, magnetic north heading is "
 				"%d\n", p_mag_heading_data->heading);
+		} else if (sensor_type == SENSOR_LPE) {
+			struct lpe_phy_data *p_lpe_phy_data =
+					(struct lpe_phy_data *)buf;
+			printf("get_single returns, lpe_msg is "
+				"%u\n", p_lpe_phy_data->lpe_msg);
 		}
 	} else if (cmd_type == 1) {
-		for (i = 0; i < prop_count; ++i) {
-			printf("%d, %d\n", prop_ids[i], prop_vals[i]);
-			ret = psh_set_property(handle, prop_ids[i], &prop_vals[i]);
-			if (ret != ERROR_NONE)
-				printf("psh_set_property fail for %dth property with code %d\n", i, ret);
+
+		if (sensor_type != SENSOR_LPE) {
+			for (i = 0; i < prop_count; ++i) {
+				printf("%d, %d\n", prop_ids[i], prop_vals[i]);
+				ret = psh_set_property(handle, prop_ids[i], &prop_vals[i]);
+				if (ret != ERROR_NONE) {
+					printf("psh_set_property fail for %dth property with code %d\n", i, ret);
+					return -1;
+				}
+			}
 		}
+
 		if (sensor_type == SENSOR_PEDOMETER)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 2);
 		else
 			ret = psh_start_streaming(handle, data_rate, buffer_delay);
-		if (ret != ERROR_NONE)
+		if (ret != ERROR_NONE) {
 			printf("psh_start_streaming() failed with code %d \n",
 									ret);
+			return -1;
+		}
+
+		if (sensor_type == SENSOR_LPE) {
+			for (i = 0; i < prop_count; ++i) {
+				printf("%d, %d\n", prop_ids[i], prop_vals[i]);
+				ret = psh_set_property(handle, prop_ids[i], &prop_vals[i]);
+				if (ret != ERROR_NONE) {
+					printf("psh_set_property fail for %dth property with code %d\n", i, ret);
+					return -1;
+				}
+			}
+		}
 
 		fd = psh_get_fd(handle);
 
@@ -700,6 +745,8 @@ int main(int argc, char **argv)
 			dump_md_data(fd);
 		else if (sensor_type == SENSOR_STAP)
 			dump_stap_data(fd);
+		else if (sensor_type == SENSOR_LPE)
+			dump_lpe_data(fd);
 	}
 //	sleep(200);
 
