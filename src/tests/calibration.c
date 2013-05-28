@@ -21,12 +21,19 @@ static void dump_calibration_info(int gyro, struct cmd_calibration_param * param
 						param->cal_param.gyro.y,
 						param->cal_param.gyro.z);
 	} else {
-		printf ("off xyz: %d %d %d\n", param->cal_param.compass.off_x,
-						param->cal_param.compass.off_y,
-						param->cal_param.compass.off_z);
-		printf ("w11 w22 w33: %d %d %d\n", param->cal_param.compass.w11,
-						param->cal_param.compass.w22,
-						param->cal_param.compass.w33);
+		printf ("offset: %d %d %d\n", param->cal_param.compass.offset[0],
+						param->cal_param.compass.offset[1],
+						param->cal_param.compass.offset[2]);
+		printf ("w: %d %d %d\n   %d %d %d\n   %d %d %d\n",
+						param->cal_param.compass.w[0][0],
+						param->cal_param.compass.w[0][1],
+						param->cal_param.compass.w[0][2],
+						param->cal_param.compass.w[1][0],
+						param->cal_param.compass.w[1][1],
+						param->cal_param.compass.w[2][2],
+						param->cal_param.compass.w[2][0],
+						param->cal_param.compass.w[2][1],
+						param->cal_param.compass.w[2][2]);
 		printf ("bfield: %d\n", param->cal_param.compass.bfield);
 	}
 }

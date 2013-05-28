@@ -244,12 +244,8 @@ struct orientation_data {
 } __attribute__ ((packed));
 
 struct compasscal_info {
-	int off_x;
-	int off_y;
-	int off_z;
-	int w11;
-	int w22;
-	int w33;
+	int offset[3];
+	int w[3][3];
 	int bfield;
 } __attribute__ ((packed));
 

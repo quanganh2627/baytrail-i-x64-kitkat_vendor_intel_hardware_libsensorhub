@@ -646,31 +646,22 @@ static void set_calibration(psh_sensor_t sensor_type,
 
 		if (sensor_type == SENSOR_CALIBRATION_COMP) {
 			/* For compass_cal, the parameter is:
-			 * off_x, off_y, off_z, w11, w22, w33, bfield
+			 * offset[3], w[3][3], bfield
 			 */
-			p = (unsigned char*)&param->cal_param.compass.off_x;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // off_x
+			int i, j;
 
-			p = (unsigned char*)&param->cal_param.compass.off_y;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // off_y
+			for (i = 0; i < 3; i++) {
+				p = (unsigned char*)&param->cal_param.compass.offset[i];
+				len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
+					p[0], p[1], p[2], p[3]); // offset[i]
+			}
 
-			p = (unsigned char*)&param->cal_param.compass.off_z;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // off_z
-
-			p = (unsigned char*)&param->cal_param.compass.w11;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // w11
-
-			p = (unsigned char*)&param->cal_param.compass.w22;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // w22
-
-			p = (unsigned char*)&param->cal_param.compass.w33;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-				p[0], p[1], p[2], p[3]); // w33
+			for (i = 0; i < 3; i++)
+				for (j = 0; j < 3; j++) {
+				p = (unsigned char*)&param->cal_param.compass.w[i][j];
+				len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
+					p[0], p[1], p[2], p[3]); // w[i][j]
+			}
 
 			p = (unsigned char*)&param->cal_param.compass.bfield;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d",
