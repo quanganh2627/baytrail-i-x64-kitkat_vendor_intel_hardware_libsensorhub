@@ -17,11 +17,13 @@
 #include <pwd.h>
 #include <pthread.h>
 
-
 #include "../include/socket.h"
 #include "../include/utils.h"
 #include "../include/message.h"
 #include "../include/bist.h"
+
+#undef LOG_TAG
+#define LOG_TAG "Libsensorhub"
 
 #define MAX_STRING_SIZE 256
 
@@ -128,7 +130,7 @@ static void daemonize()
 	pid_t sid, pid = fork();
 
 	if (pid < 0) {
-		log_message(CRITICAL, "error in fork daemon. \n");
+		LOGE("error in fork daemon. \n");
 		exit(EXIT_FAILURE);
 	} else if (pid > 0)
 		exit(EXIT_SUCCESS);
@@ -136,7 +138,7 @@ static void daemonize()
 	/* new SID for daemon process */
 	sid = setsid();
 	if (sid < 0) {
-		log_message(CRITICAL, "error in setsid(). \n");
+		LOGE("error in setsid(). \n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -149,7 +151,7 @@ static void daemonize()
 
 	pw = getpwnam("system");
 	if (pw == NULL) {
-		log_message(CRITICAL, "daemonize(): getpwnam return NULL \n");
+		LOGE("daemonize(): getpwnam return NULL \n");
 		return;
 	}
 	setuid(pw->pw_uid);
@@ -719,7 +721,7 @@ static void load_calibration_from_file(psh_sensor_t sensor_type,
 		log_message(DEBUG, "Open file %s failed, create a new one!\n", file_name);
 		conf = fopen(file_name, "w");
 		if (conf == NULL) {
-			log_message(CRITICAL, "load_calibration_from_file(): failed to open file \n");
+			LOGE("load_calibration_from_file(): failed to open file \n");
 			return;
 		}
 		fwrite(param, sizeof(struct cmd_calibration_param), 1, conf);
@@ -1069,7 +1071,7 @@ static void handle_message(int fd, char *message)
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
 			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
-			log_message(CRITICAL, "handle_message(): sensor type %d not supported \n", sensor_type);
+			LOGE("handle_message(): sensor type %d not supported \n", sensor_type);
 			return;
 		}
 		session_id_t session_id = allocate_session_id();
@@ -1084,7 +1086,7 @@ static void handle_message(int fd, char *message)
 
 		p_session_state = malloc(sizeof(session_state_t));
 		if (p_session_state == NULL) {
-			log_message(CRITICAL, "handle_message(): malloc failed \n");
+			LOGE("handle_message(): malloc failed \n");
 			return;
 		}
 		memset(p_session_state, 0, sizeof(session_state_t));
@@ -1215,7 +1217,7 @@ static void reset_sensorhub()
 	log_message(DEBUG, "node_number is %d \n", node_number);
 
 	if (node_number == MAX_DEV_NODE_NUM) {
-		log_message(CRITICAL, "can't find device node \n");
+		LOGE("can't find device node \n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1223,7 +1225,7 @@ static void reset_sensorhub()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/control", node_number);
 	ctlfd = open(node_path, O_WRONLY);
 	if (ctlfd == -1) {
-		log_message(CRITICAL, "open %s failed, errno is %d\n",
+		LOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -1234,7 +1236,7 @@ static void reset_sensorhub()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/data", node_number);
 	datafd = open(node_path, O_RDONLY);
 	if (datafd == -1) {
-		log_message(CRITICAL, "open %s failed, errno is %d\n",
+		LOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -1243,7 +1245,7 @@ static void reset_sensorhub()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/data_size", node_number);
 	datasizefd = open(node_path, O_RDONLY);
 	if (datasizefd == -1) {
-		log_message(CRITICAL, "open %s failed, errno is %d\n",
+		LOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -1258,7 +1260,7 @@ static void reset_sensorhub()
 	int ret = bind(sockfd, (struct sockaddr *) &serv_addr,
 					sizeof(serv_addr));
 	if (ret != 0) {
-		log_message(CRITICAL, "bind failed, ret is %d\n", ret);
+		LOGE("bind failed, ret is %d\n", ret);
 		exit(EXIT_FAILURE);
 	}
 
@@ -1267,14 +1269,14 @@ static void reset_sensorhub()
 	/* open wakeup and sleep sysfs node */
 	wakefd = open(WAKE_NODE, O_RDONLY, 0);
 	if (wakefd == -1) {
-		log_message(CRITICAL, "open %s failed, errno is %d\n",
+		LOGE("open %s failed, errno is %d\n",
 				WAKE_NODE, errno);
 		exit(EXIT_FAILURE);
 	}
 
 	sleepfd = open(SLEEP_NODE, O_RDONLY, 0);
 	if (sleepfd == -1) {
-		log_message(CRITICAL, "open %s failed, errno is %d\n",
+		LOGE("open %s failed, errno is %d\n",
 			SLEEP_NODE, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -1453,7 +1455,7 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			== sensor_type_to_sensor_id[SENSOR_BIST]) {
 		sensor_type = SENSOR_BIST;
 	} else {
-		log_message(CRITICAL, "dispatch_get_single(): unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
+		LOGE("dispatch_get_single(): unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
 		return;
 	}
 
@@ -1471,7 +1473,7 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 
 			p_cmd_ack = malloc(sizeof(cmd_ack_event) + p_cmd_resp->data_len + 2);
 			if (p_cmd_ack == NULL) {
-				log_message(CRITICAL, "dispatch_get_single(): malloc failed \n");
+				LOGE("dispatch_get_single(): malloc failed \n");
 				goto fail;
 			}
 			p_cmd_ack->event_type = EVENT_CMD_ACK;
@@ -1489,7 +1491,7 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			int i;
 			p_cmd_ack = malloc(sizeof(cmd_ack_event) + sizeof(struct bist_data));
 			if (p_cmd_ack == NULL) {
-				log_message(CRITICAL, "dispatch_get_single(): malloc failed \n");
+				LOGE("dispatch_get_single(): malloc failed \n");
 				goto fail;
 			}
 			p_cmd_ack->event_type = EVENT_CMD_ACK;
@@ -1509,7 +1511,7 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack = malloc(sizeof(cmd_ack_event)
 						+ p_cmd_resp->data_len);
 			if (p_cmd_ack == NULL) {
-				log_message(CRITICAL, "dispatch_get_single(): malloc failed \n");
+				LOGE("dispatch_get_single(): malloc failed \n");
 				goto fail;
 			}
 			p_cmd_ack->event_type = EVENT_CMD_ACK;
@@ -1716,7 +1718,7 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 
 	return;
 fail:
-	log_message(CRITICAL, "failed to allocate memory \n");
+	LOGE("failed to allocate memory \n");
 }
 
 static void debug_data_rate(struct cmd_resp *p_cmd_resp)
@@ -1873,7 +1875,7 @@ static void handle_calibration(struct cmd_calibration_param * param){
 
 		p_cmd_ack = malloc(sizeof(cmd_ack_event) + sizeof(struct cmd_calibration_param));
 		if (p_cmd_ack == NULL) {
-			log_message(CRITICAL, "failed to allocate memory \n");
+			LOGE("failed to allocate memory \n");
 			goto fail;
 		}
 		p_cmd_ack->event_type = EVENT_CMD_ACK;
@@ -1913,7 +1915,7 @@ static void handle_add_event_resp(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack = malloc(sizeof(cmd_ack_event)
 					+ p_cmd_resp->data_len);
 			if (p_cmd_ack == NULL) {
-				log_message(CRITICAL, "handle_add_event_resp(): malloc failed \n");
+				LOGE("handle_add_event_resp(): malloc failed \n");
 				return;
 			}
 
@@ -1973,7 +1975,7 @@ static void dispatch_data()
 		buf = (char *)malloc(128 * 1024);
 
 	if (buf == NULL) {
-		log_message(CRITICAL, "dispatch_data(): malloc failed \n");
+		LOGE("dispatch_data(): malloc failed \n");
 		return;
 	}
 
@@ -2265,7 +2267,7 @@ static void start_sensorhubd()
 	/* add notifyfds[0] to listen_fds */
 	ret = pipe(notifyfds);
 	if (ret < 0) {
-		log_message(CRITICAL, "sensorhubd failed to create pipe \n");
+		LOGE("sensorhubd failed to create pipe \n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -2295,9 +2297,9 @@ static void start_sensorhubd()
 			if (errno == EINTR)
 				continue;
 			else {
-				log_message(CRITICAL, "sensorhubd socket "
-						"select() failed. errno "
-						"is %d\n", errno);
+				LOGE("sensorhubd socket "
+					"select() failed. errno "
+					"is %d\n", errno);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -2310,11 +2312,11 @@ static void start_sensorhubd()
 					(struct sockaddr *) &client_addr,
 					&addrlen);
 			if (clientfd == -1) {
-				log_message(CRITICAL, "sensorhubd socket "
-						"accept() failed. \n");
+				LOGE("sensorhubd socket "
+					"accept() failed.\n");
 				exit(EXIT_FAILURE);
 			} else {
-				log_message(CRITICAL, "new connection from client \n");
+				LOGI("new connection from client\n");
 				FD_SET(clientfd, &listen_fds);
 				if (clientfd > maxfd)
 					maxfd = clientfd;
@@ -2420,10 +2422,10 @@ static void get_status()
 
 	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d %d %d",
 			0, CMD_GET_STATUS, 0, 0xff, 0xff, 0xff, 0xff);
-	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
+	LOGI("cmd to sysfs is: %s\n", cmd_string);
 
 	ret = write(ctlfd, cmd_string, size);
-	log_message(DEBUG, "cmd return value is %d\n", ret);
+	LOGI("cmd return value is %d\n", ret);
 	if (ret < 0)
 		exit(EXIT_FAILURE);
 
@@ -2449,130 +2451,130 @@ static void get_status()
 
 		snr_info = (struct sensor_info *)buf;
 
-		log_message(DEBUG, "sensor id is %d, name is %s, freq_max is %d \n", snr_info->id, snr_info->name, snr_info->freq_max);
+		LOGI("sensor id is %d, name is %s, freq_max is %d \n", snr_info->id, snr_info->name, snr_info->freq_max);
 
 		if (strncmp(snr_info->name, "ACCEL", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ACCELEROMETER] = snr_info->id;
 			sensor_list[SENSOR_ACCELEROMETER].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER],
 									sensor_list[SENSOR_ACCELEROMETER].freq_max);
 		} else if (strncmp(snr_info->name, "GYROC", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO] = snr_info->id;
-			log_message(DEBUG, "id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO]);
+			LOGI("id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO]);
 		} else if (strncmp(snr_info->name, "GYRO", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GYRO] = snr_info->id;
 			sensor_list[SENSOR_GYRO].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GYRO],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GYRO],
 									sensor_list[SENSOR_GYRO].freq_max);
 		} else if (strncmp(snr_info->name, "COMPS", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_COMP] = snr_info->id;
 			sensor_list[SENSOR_COMP].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_COMP],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_COMP],
 									sensor_list[SENSOR_COMP].freq_max);
 		} else if (strncmp(snr_info->name, "BARO", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_BARO] = snr_info->id;
 			sensor_list[SENSOR_BARO].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BARO],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BARO],
 									sensor_list[SENSOR_BARO].freq_max);
 		} else if (strncmp(snr_info->name, "ALS_P", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ALS] = snr_info->id;
 			sensor_list[SENSOR_ALS].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ALS],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ALS],
 									sensor_list[SENSOR_ALS].freq_max);
 		} else if (strncmp(snr_info->name, "PS_P", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_PROXIMITY] = snr_info->id;
 			sensor_list[SENSOR_PROXIMITY].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PROXIMITY],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PROXIMITY],
 									sensor_list[SENSOR_PROXIMITY].freq_max);
 		} else if (strncmp(snr_info->name, "TERMC", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_TC] = snr_info->id;
 			sensor_list[SENSOR_TC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_TC],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_TC],
 									sensor_list[SENSOR_TC].freq_max);
 		} else if (strncmp(snr_info->name, "GSSPT", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GS] = snr_info->id;
 			sensor_list[SENSOR_GS].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GS],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GS],
 									sensor_list[SENSOR_GS].freq_max);
 		} else if (strncmp(snr_info->name, "PHYAC", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ACTIVITY] = snr_info->id;
 			sensor_list[SENSOR_ACTIVITY].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACTIVITY],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACTIVITY],
 									sensor_list[SENSOR_ACTIVITY].freq_max);
 		} else if (strncmp(snr_info->name, "9DOF", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_9DOF] = snr_info->id;
 			sensor_list[SENSOR_9DOF].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_9DOF],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_9DOF],
 									sensor_list[SENSOR_9DOF].freq_max);
 		} else if (strncmp(snr_info->name, "GSFLK", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK] = snr_info->id;
 			sensor_list[SENSOR_GESTURE_FLICK].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK],
 									sensor_list[SENSOR_GESTURE_FLICK].freq_max);
 		} else if (strncmp(snr_info->name, "SHAKI", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_SHAKING] = snr_info->id;
 			sensor_list[SENSOR_SHAKING].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_SHAKING],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_SHAKING],
 									sensor_list[SENSOR_SHAKING].freq_max);
 		} else if (strncmp(snr_info->name, "STAP", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_STAP] = snr_info->id;
 			sensor_list[SENSOR_STAP].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_STAP],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_STAP],
 									sensor_list[SENSOR_STAP].freq_max);
 		} else if (strncmp(snr_info->name, "GRAVI", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GRAVITY] = snr_info->id;
 			sensor_list[SENSOR_GRAVITY].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GRAVITY],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GRAVITY],
 									sensor_list[SENSOR_GRAVITY].freq_max);
 		} else if (strncmp(snr_info->name, "ORIEN", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ORIENTATION] = snr_info->id;
 			sensor_list[SENSOR_ORIENTATION].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ORIENTATION],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ORIENTATION],
 									sensor_list[SENSOR_ORIENTATION].freq_max);
 		} else if (strncmp(snr_info->name, "LACCL", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL] = snr_info->id;
 			sensor_list[SENSOR_LINEAR_ACCEL].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL],
 									sensor_list[SENSOR_LINEAR_ACCEL].freq_max);
 		} else if (strncmp(snr_info->name, "RVECT", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR] = snr_info->id;
 			sensor_list[SENSOR_ROTATION_VECTOR].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR],
 									sensor_list[SENSOR_ROTATION_VECTOR].freq_max);
 		} else if (strncmp(snr_info->name, "MAGHD", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_MAG_HEADING] = snr_info->id;
 			sensor_list[SENSOR_MAG_HEADING].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MAG_HEADING],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MAG_HEADING],
 									sensor_list[SENSOR_MAG_HEADING].freq_max);
 		} else if (strncmp(snr_info->name, "PEDOM", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_PEDOMETER] = snr_info->id;
 			sensor_list[SENSOR_PEDOMETER].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PEDOMETER],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PEDOMETER],
 									sensor_list[SENSOR_PEDOMETER].freq_max);
 		} else if (strncmp(snr_info->name, "LPE_P", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_LPE] = snr_info->id;
 			sensor_list[SENSOR_LPE].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LPE],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LPE],
 									sensor_list[SENSOR_LPE].freq_max);
 		} else if (strncmp(snr_info->name, "COMPC", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP] = snr_info->id;
-			log_message(DEBUG, "id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP]);
+			LOGI("id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP]);
 		} else if (strncmp(snr_info->name, "MOVDT", SNR_NAME_MAX_LEN - 1) == 0) {
 			sensor_type_to_sensor_id[SENSOR_MOVE_DETECT] = snr_info->id;
 			sensor_list[SENSOR_MOVE_DETECT].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MOVE_DETECT],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MOVE_DETECT],
 									sensor_list[SENSOR_MOVE_DETECT].freq_max);
 		} else if (strncmp(snr_info->name, "BIST", SNR_NAME_MAX_LEN - 2) == 0) {
 			sensor_type_to_sensor_id[SENSOR_BIST] = snr_info->id;
 			sensor_list[SENSOR_BIST].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BIST],
+			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BIST],
 									sensor_list[SENSOR_BIST].freq_max);
 		}
 	}
 
 	gettimeofday(&tv1, NULL);
-	log_message(DEBUG, "latency of is get_status() is "
-			"%d \n", tv1.tv_usec - tv.tv_usec);
+	LOGI("latency of is get_status() is "
+		"%d \n", tv1.tv_usec - tv.tv_usec);
 
 	if (ret < 0)
 		 exit(EXIT_FAILURE);

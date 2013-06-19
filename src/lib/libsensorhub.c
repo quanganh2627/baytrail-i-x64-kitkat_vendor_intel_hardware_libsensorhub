@@ -13,6 +13,9 @@
 
 #define MAX_DATA_RATE 100
 
+#undef LOG_TAG
+#define LOG_TAG "LibsensorhubClient"
+
 typedef struct {
 	int datafd;
 	int ctlfd;
@@ -48,7 +51,7 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	ret = connect(datafd, (struct sockaddr *) &addr, sizeof(addr));
 	if (ret < 0) {
 		close(datafd);
-		log_message(CRITICAL, "data connection setup failed \n");
+		LOGE("data connection setup failed \n");
 		return NULL;
 	}
 
@@ -59,22 +62,22 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 			sizeof(hello_with_sensor_type), 0);
 	if (ret < 0) {
 		close(datafd);
-		log_message(CRITICAL, "write EVENT_HELLO_WITH_SENSOR_TYPE "
-								"failed \n");
+		LOGE("write EVENT_HELLO_WITH_SENSOR_TYPE "
+						"failed \n");
 		return NULL;
 	}
 
 	ret = recv(datafd, message, MAX_MESSAGE_LENGTH, 0);
 	if (ret < 0) {
 		close(datafd);
-		log_message(CRITICAL, "read EVENT_HELLO_WITH_SENSOR_TYPE_ACK "
-								"failed \n");
+		LOGE("read EVENT_HELLO_WITH_SENSOR_TYPE_ACK "
+						"failed \n");
 		return NULL;
 	}
 	event_type = *((int *) message);
 	if (event_type != EVENT_HELLO_WITH_SENSOR_TYPE_ACK) {
 		close(datafd);
-		log_message(CRITICAL, "not get expected "
+		LOGE("not get expected "
 				"EVENT_HELLO_WITH_SENSOR_TYPE_ACK \n");
 		return NULL;
 	} else {
@@ -93,7 +96,7 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		log_message(CRITICAL, "control connection setup failed \n");
+		LOGE("control connection setup failed \n");
 		return NULL;
 	}
 
@@ -105,8 +108,8 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		log_message(CRITICAL, "write EVENT_HELLO_WITH_SESSION_ID "
-								"failed \n");
+		LOGE("write EVENT_HELLO_WITH_SESSION_ID "
+						"failed \n");
 		return NULL;
 	}
 
@@ -114,16 +117,16 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		log_message(CRITICAL, "read EVENT_HELLO_WITH_SESSION_ID_ACK "
-								"failed \n");
+		LOGE("read EVENT_HELLO_WITH_SESSION_ID_ACK "
+						"failed \n");
 		return NULL;
 	}
 	event_type = *((int *) message);
 	if (event_type != EVENT_HELLO_WITH_SESSION_ID_ACK) {
 		close(datafd);
 		close(ctlfd);
-		log_message(CRITICAL, "not get expected "
-					"EVENT_HELLO_WITH_SESSION_ID_ACK \n");
+		LOGE("not get expected "
+			"EVENT_HELLO_WITH_SESSION_ID_ACK \n");
 		return NULL;
 	} else {
 		p_hello_with_session_id_ack
@@ -132,7 +135,7 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 		if (ret != SUCCESS) {
 			close(datafd);
 			close(ctlfd);
-			log_message(CRITICAL, "failed: "
+			LOGE("failed: "
 			"EVENT_HELLO_WITH_SESSION_ID_ACK returned %d \n", ret);
 			return NULL;
 		}
@@ -143,8 +146,8 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 		if (evt_param == NULL) {
 			close(datafd);
 			close(ctlfd);
-			log_message(CRITICAL, "failed to allocate memory for "
-						"cmd_event_param");
+			LOGE("failed to allocate memory for "
+					"cmd_event_param");
 			return NULL;
 		}
 
@@ -157,8 +160,8 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 		close(datafd);
 		close(ctlfd);
 		free(evt_param);
-		log_message(CRITICAL, "failed to allocate memory for "
-						"session_context \n");
+		LOGE("failed to allocate memory for "
+					"session_context \n");
 		return NULL;
 	}
 
@@ -497,7 +500,7 @@ error_t psh_event_append(handle_t handle, struct sub_event *sub_evt)
 	/* currently only support 5 sub events */
 	evt_param = session_context->evt_param;
 	if (evt_param->num >= 5) {
-		log_message(CRITICAL, "psh_event_append() "
+		LOGE("psh_event_append() "
 			"currently only support 5 sub events \n");
 		return ERROR_NOT_AVAILABLE;
 	}

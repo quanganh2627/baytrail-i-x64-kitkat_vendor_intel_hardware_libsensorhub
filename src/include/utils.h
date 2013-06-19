@@ -1,3 +1,5 @@
+#include <utils/Log.h>
+
 typedef enum {
 	CRITICAL,
 	WARNING,
