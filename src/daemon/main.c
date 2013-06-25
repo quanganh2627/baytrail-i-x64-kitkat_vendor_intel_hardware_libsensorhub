@@ -1499,17 +1499,7 @@ static void send_data_to_clients(psh_sensor_t sensor_type, void *data,
 
 		/* no arbiter needed for SENSOR_ALS,
 			SENSOR_ACTIVITY, SENSOR_GS, GESTURE_FLICK */
-		if ((sensor_type == SENSOR_ALS)
-				|| (sensor_type == SENSOR_PROXIMITY)
-				|| (sensor_type == SENSOR_ACTIVITY)
-				|| (sensor_type == SENSOR_GS)
-				|| (sensor_type == SENSOR_GESTURE_FLICK)
-				|| (sensor_type == SENSOR_TC)
-				|| (sensor_type == SENSOR_PEDOMETER)
-				|| (sensor_type == SENSOR_SHAKING)
-				|| (sensor_type == SENSOR_MOVE_DETECT)
-				|| (sensor_type == SENSOR_STAP)
-				|| (sensor_type == SENSOR_LPE)) {
+		if (sensor_list[sensor_type].freq_max == -1) {
 //			write(p_session_state->datafd, data, size);
 			send(p_session_state->datafd, data, size, MSG_NOSIGNAL);
 			continue;
@@ -1692,24 +1682,34 @@ fail:
 
 static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 {
-	if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ACCELEROMETER]) {
+	psh_sensor_t sensor_type;
+
+	if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ACCELEROMETER])
+		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ACCELEROMETER_SEC])) {
+
+		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ACCELEROMETER])
+			sensor_type = SENSOR_ACCELEROMETER;
+		else
+			sensor_type = SENSOR_ACCELEROMETER_SEC;
+
 		struct accel_data *p_accel_data
 				= (struct accel_data *)p_cmd_resp->buf;
-//                      log_message(DEBUG, "accel data, x, y, z is: "
-//                                      "%d, %d, %d \n", p_accel_data->x,
-//                                      p_accel_data->y, p_accel_data->z);
 
-                        /* TODO: split data into MAX_MESSAGE_LENGTH */
-		send_data_to_clients(SENSOR_ACCELEROMETER, p_accel_data,
+		send_data_to_clients(sensor_type, p_accel_data,
 					p_cmd_resp->data_len,
 					sizeof(struct accel_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GYRO]) {
+	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_GYRO])
+		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_GYRO_SEC])) {
 		struct gyro_raw_data *p_gyro_raw_data;
 		struct gyro_raw_data *p_fake
 			= (struct gyro_raw_data *)p_cmd_resp->buf;
 		int i, len;
+
+		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_GYRO])
+			sensor_type = SENSOR_GYRO;
+		else
+			sensor_type = SENSOR_GYRO_SEC;
+
 		len = p_cmd_resp->data_len / (sizeof(struct gyro_raw_data) - 2);
 		p_gyro_raw_data = (struct gyro_raw_data *)malloc(len * sizeof(struct gyro_raw_data));
 		if (p_gyro_raw_data == NULL)
@@ -1722,15 +1722,21 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 				check_calibration_status(SENSOR_CALIBRATION_GYRO,
 							CALIBRATION_DONE);
 		}
-		send_data_to_clients(SENSOR_GYRO, p_gyro_raw_data,
+		send_data_to_clients(sensor_type, p_gyro_raw_data,
 					len*sizeof(struct gyro_raw_data),
 					sizeof(struct gyro_raw_data));
 		free(p_gyro_raw_data);
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_COMP]) {
+	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_COMP])
+		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_COMP_SEC])) {
 		struct compass_raw_data *p_compass_raw_data;
 		struct compass_raw_data *p_fake = (struct compass_raw_data *)p_cmd_resp->buf;
 		int i, len;
+
+		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_COMP])
+			sensor_type = SENSOR_COMP;
+		else
+			sensor_type = SENSOR_COMP_SEC;
+
 		len = p_cmd_resp->data_len / (sizeof(struct compass_raw_data) - 2);
 		p_compass_raw_data = malloc(len * sizeof(struct compass_raw_data));
 		if(p_compass_raw_data == NULL)
@@ -1744,7 +1750,7 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 							CALIBRATION_DONE);
 		}
 		//TODO What to do?
-		send_data_to_clients(SENSOR_COMP, p_compass_raw_data,
+		send_data_to_clients(sensor_type, p_compass_raw_data,
 					len*sizeof(struct compass_raw_data),
 					sizeof(struct compass_raw_data)); // Unggg ...
 		free(p_compass_raw_data);
@@ -1753,18 +1759,28 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 		struct tc_data *p_tc_data = (struct tc_data *)p_cmd_resp->buf;
 		send_data_to_clients(SENSOR_TC, p_tc_data, p_cmd_resp->data_len,
 							sizeof(struct tc_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_BARO]) {
+	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_BARO])
+		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_BARO_SEC])) {
+		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_BARO])
+			sensor_type = SENSOR_BARO;
+		else
+			sensor_type = SENSOR_BARO_SEC;
+
 		struct baro_raw_data *p_baro_raw_data
 			= (struct baro_raw_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_BARO, p_baro_raw_data,
+		send_data_to_clients(sensor_type, p_baro_raw_data,
 						p_cmd_resp->data_len,
 						sizeof(struct baro_raw_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ALS]) {
+	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ALS])
+		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ALS_SEC])) {
+		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ALS])
+			sensor_type = SENSOR_ALS;
+		else
+			sensor_type = SENSOR_ALS_SEC;
+
 		struct als_raw_data *p_als_raw_data
 			 = (struct als_raw_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_ALS, p_als_raw_data,
+		send_data_to_clients(sensor_type, p_als_raw_data,
 						p_cmd_resp->data_len,
 						sizeof(struct als_raw_data));
 	} else if (p_cmd_resp->sensor_id
@@ -1783,11 +1799,16 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 			= (struct gs_data *)p_cmd_resp->buf;
 		send_data_to_clients(SENSOR_GS, p_gs_data, p_cmd_resp->data_len,
 					sizeof(struct gs_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_PROXIMITY]) {
+	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_PROXIMITY])
+		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_PROXIMITY_SEC])) {
+		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_PROXIMITY])
+			sensor_type = SENSOR_PROXIMITY;
+		else
+			sensor_type = SENSOR_PROXIMITY_SEC;
+
 		struct ps_phy_data *p_ps_phy_data
 			= (struct ps_phy_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_PROXIMITY, p_ps_phy_data,
+		send_data_to_clients(sensor_type, p_ps_phy_data,
 					p_cmd_resp->data_len,
 					sizeof(struct ps_phy_data));
 	} else if (p_cmd_resp->sensor_id
@@ -2558,7 +2579,7 @@ static void setup_psh()
 
 
 #define CMD_GET_STATUS		11
-#define SNR_NAME_MAX_LEN	6
+#define SNR_NAME_MAX_LEN	5
 
 static void get_status()
 {
@@ -2581,7 +2602,7 @@ static void get_status()
 		unsigned short attri;
 
 		short freq_max;	// -1, means no fixed data rate
-		char name[SNR_NAME_MAX_LEN];
+		char name[SNR_NAME_MAX_LEN + 1];
 
 		unsigned char health;
 		unsigned char link_num;
@@ -2630,122 +2651,152 @@ static void get_status()
 
 		LOGI("sensor id is %d, name is %s, freq_max is %d \n", snr_info->id, snr_info->name, snr_info->freq_max);
 
-		if (strncmp(snr_info->name, "ACCEL", SNR_NAME_MAX_LEN - 1) == 0) {
+		if (strncmp(snr_info->name, "ACCEL", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ACCELEROMETER] = snr_info->id;
 			sensor_list[SENSOR_ACCELEROMETER].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER],
 									sensor_list[SENSOR_ACCELEROMETER].freq_max);
-		} else if (strncmp(snr_info->name, "GYROC", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "GYROC", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO] = snr_info->id;
 			LOGI("id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO]);
-		} else if (strncmp(snr_info->name, "GYRO", SNR_NAME_MAX_LEN - 2) == 0) {
+		} else if (strncmp(snr_info->name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GYRO] = snr_info->id;
 			sensor_list[SENSOR_GYRO].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GYRO],
 									sensor_list[SENSOR_GYRO].freq_max);
-		} else if (strncmp(snr_info->name, "COMPS", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_COMP] = snr_info->id;
 			sensor_list[SENSOR_COMP].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_COMP],
 									sensor_list[SENSOR_COMP].freq_max);
-		} else if (strncmp(snr_info->name, "BARO", SNR_NAME_MAX_LEN - 2) == 0) {
+		} else if (strncmp(snr_info->name, "BARO", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_BARO] = snr_info->id;
 			sensor_list[SENSOR_BARO].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BARO],
 									sensor_list[SENSOR_BARO].freq_max);
-		} else if (strncmp(snr_info->name, "ALS_P", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "ALS_P", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ALS] = snr_info->id;
 			sensor_list[SENSOR_ALS].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ALS],
 									sensor_list[SENSOR_ALS].freq_max);
-		} else if (strncmp(snr_info->name, "PS_P", SNR_NAME_MAX_LEN - 2) == 0) {
+		} else if (strncmp(snr_info->name, "PS_P", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_PROXIMITY] = snr_info->id;
 			sensor_list[SENSOR_PROXIMITY].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PROXIMITY],
 									sensor_list[SENSOR_PROXIMITY].freq_max);
-		} else if (strncmp(snr_info->name, "TERMC", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "TERMC", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_TC] = snr_info->id;
 			sensor_list[SENSOR_TC].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_TC],
 									sensor_list[SENSOR_TC].freq_max);
-		} else if (strncmp(snr_info->name, "GSSPT", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "GSSPT", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GS] = snr_info->id;
 			sensor_list[SENSOR_GS].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GS],
 									sensor_list[SENSOR_GS].freq_max);
-		} else if (strncmp(snr_info->name, "PHYAC", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ACTIVITY] = snr_info->id;
 			sensor_list[SENSOR_ACTIVITY].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACTIVITY],
 									sensor_list[SENSOR_ACTIVITY].freq_max);
-		} else if (strncmp(snr_info->name, "9DOF", SNR_NAME_MAX_LEN - 2) == 0) {
+		} else if (strncmp(snr_info->name, "9DOF", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_9DOF] = snr_info->id;
 			sensor_list[SENSOR_9DOF].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_9DOF],
 									sensor_list[SENSOR_9DOF].freq_max);
-		} else if (strncmp(snr_info->name, "GSFLK", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK] = snr_info->id;
 			sensor_list[SENSOR_GESTURE_FLICK].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK],
 									sensor_list[SENSOR_GESTURE_FLICK].freq_max);
-		} else if (strncmp(snr_info->name, "SHAKI", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "SHAKI", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_SHAKING] = snr_info->id;
 			sensor_list[SENSOR_SHAKING].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_SHAKING],
 									sensor_list[SENSOR_SHAKING].freq_max);
-		} else if (strncmp(snr_info->name, "STAP", SNR_NAME_MAX_LEN - 2) == 0) {
+		} else if (strncmp(snr_info->name, "STAP", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_STAP] = snr_info->id;
 			sensor_list[SENSOR_STAP].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_STAP],
 									sensor_list[SENSOR_STAP].freq_max);
-		} else if (strncmp(snr_info->name, "GRAVI", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "GRAVI", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_GRAVITY] = snr_info->id;
 			sensor_list[SENSOR_GRAVITY].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GRAVITY],
 									sensor_list[SENSOR_GRAVITY].freq_max);
-		} else if (strncmp(snr_info->name, "ORIEN", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "ORIEN", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ORIENTATION] = snr_info->id;
 			sensor_list[SENSOR_ORIENTATION].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ORIENTATION],
 									sensor_list[SENSOR_ORIENTATION].freq_max);
-		} else if (strncmp(snr_info->name, "LACCL", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "LACCL", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL] = snr_info->id;
 			sensor_list[SENSOR_LINEAR_ACCEL].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL],
 									sensor_list[SENSOR_LINEAR_ACCEL].freq_max);
-		} else if (strncmp(snr_info->name, "RVECT", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "RVECT", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR] = snr_info->id;
 			sensor_list[SENSOR_ROTATION_VECTOR].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR],
 									sensor_list[SENSOR_ROTATION_VECTOR].freq_max);
-		} else if (strncmp(snr_info->name, "MAGHD", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "MAGHD", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_MAG_HEADING] = snr_info->id;
 			sensor_list[SENSOR_MAG_HEADING].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MAG_HEADING],
 									sensor_list[SENSOR_MAG_HEADING].freq_max);
-		} else if (strncmp(snr_info->name, "PEDOM", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "PEDOM", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_PEDOMETER] = snr_info->id;
 			sensor_list[SENSOR_PEDOMETER].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PEDOMETER],
 									sensor_list[SENSOR_PEDOMETER].freq_max);
-		} else if (strncmp(snr_info->name, "LPE_P", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "LPE_P", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_LPE] = snr_info->id;
 			sensor_list[SENSOR_LPE].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LPE],
 									sensor_list[SENSOR_LPE].freq_max);
-		} else if (strncmp(snr_info->name, "COMPC", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "COMPC", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP] = snr_info->id;
 			LOGI("id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP]);
-		} else if (strncmp(snr_info->name, "MOVDT", SNR_NAME_MAX_LEN - 1) == 0) {
+		} else if (strncmp(snr_info->name, "MOVDT", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_MOVE_DETECT] = snr_info->id;
 			sensor_list[SENSOR_MOVE_DETECT].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MOVE_DETECT],
 									sensor_list[SENSOR_MOVE_DETECT].freq_max);
-		} else if (strncmp(snr_info->name, "BIST", SNR_NAME_MAX_LEN - 2) == 0) {
+		} else if (strncmp(snr_info->name, "BIST", SNR_NAME_MAX_LEN) == 0) {
 			sensor_type_to_sensor_id[SENSOR_BIST] = snr_info->id;
 			sensor_list[SENSOR_BIST].freq_max = snr_info->freq_max;
 			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BIST],
 									sensor_list[SENSOR_BIST].freq_max);
+		} else if (strncmp(snr_info->name, "ACC1", SNR_NAME_MAX_LEN) == 0) {
+			sensor_type_to_sensor_id[SENSOR_ACCELEROMETER_SEC] = snr_info->id;
+			sensor_list[SENSOR_ACCELEROMETER_SEC].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER_SEC],
+									sensor_list[SENSOR_ACCELEROMETER_SEC].freq_max);
+		} else if (strncmp(snr_info->name, "GYRO1", SNR_NAME_MAX_LEN) == 0) {
+			sensor_type_to_sensor_id[SENSOR_GYRO_SEC] = snr_info->id;
+			sensor_list[SENSOR_GYRO_SEC].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GYRO_SEC],
+									sensor_list[SENSOR_GYRO_SEC].freq_max);
+		} else if (strncmp(snr_info->name, "COMP1", SNR_NAME_MAX_LEN) == 0) {
+			sensor_type_to_sensor_id[SENSOR_COMP_SEC] = snr_info->id;
+			sensor_list[SENSOR_COMP_SEC].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_COMP_SEC],
+									sensor_list[SENSOR_COMP_SEC].freq_max);
+		} else if (strncmp(snr_info->name, "ALS1", SNR_NAME_MAX_LEN) == 0) {
+			sensor_type_to_sensor_id[SENSOR_ALS_SEC] = snr_info->id;
+			sensor_list[SENSOR_ALS_SEC].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ALS_SEC],
+									sensor_list[SENSOR_ALS_SEC].freq_max);
+		} else if (strncmp(snr_info->name, "PS1", SNR_NAME_MAX_LEN) == 0) {
+			sensor_type_to_sensor_id[SENSOR_PROXIMITY_SEC] = snr_info->id;
+			sensor_list[SENSOR_PROXIMITY_SEC].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PROXIMITY_SEC],
+									sensor_list[SENSOR_PROXIMITY_SEC].freq_max);
+		} else if (strncmp(snr_info->name, "BARO1", SNR_NAME_MAX_LEN) == 0) {
+			sensor_type_to_sensor_id[SENSOR_BARO_SEC] = snr_info->id;
+			sensor_list[SENSOR_BARO_SEC].freq_max = snr_info->freq_max;
+			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BARO_SEC],
+									sensor_list[SENSOR_BARO_SEC].freq_max);
 		}
 	}
 
