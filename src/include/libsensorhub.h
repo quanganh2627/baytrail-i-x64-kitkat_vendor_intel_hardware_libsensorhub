@@ -71,6 +71,7 @@ typedef enum {
 	PROP_ACT_MODE,
 	PROP_ACT_CLSMASK,
 	PROP_ACT_N,
+	PROP_ACT_DUTY_M,
 	PROP_ACT_END = 60,
 
 	PROP_GFLICK_START = 60,
@@ -157,6 +158,7 @@ short psh_get_event_id(handle_t handle);
 
 /* set properties */
 error_t psh_set_property(handle_t handle, property_type prop_type, void *value);
+error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int size, void *value);
 
 /* data format of each sensor type */
 struct accel_data {

@@ -26,6 +26,7 @@
 #define LOG_TAG "Libsensorhub"
 
 #define MAX_STRING_SIZE 256
+#define MAX_PROP_VALUE_SIZE 58
 
 #define MAX_DEV_NODE_NUM 8
 
@@ -435,24 +436,47 @@ static int send_control_cmd(int tran_id, int cmd_id, int sensor_id,
 	return 0;
 }
 
-static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, int value)
+
+/*
+ * 60 bytes can be transfered once maximumly, including property value length and property type.
+ * So actually 58 bytes of property value can be sent once.
+ *
+ * send_set_property() will split property value buffer larger than 58 bytes into segments and
+ * send them one by one.
+ *
+ * User should handle start/end flags, by themselves in their *value buffer.
+ * User should handle segments concatenation by themselves in virtual sensor.
+ */
+static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, int len, unsigned char *value)
 {
 	char cmd_string[MAX_STRING_SIZE];
-	int size, ret;
+	int size, ret, i, j, set_len, left_len;
+	unsigned char *p = value;
 	unsigned char prop_type_byte = (unsigned char )prop_type;
-	unsigned char *value_byte = (unsigned char *)&value;
 
-	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d, %d, %d, %d, %d, %d, %d, %d, %d", 0,
-			cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], 5,
-			prop_type_byte, value_byte[0], value_byte[1], value_byte[2], value_byte[3]
-			);
+	log_message(CRITICAL, "prop type: %d len: %d value: %d %d %d %d\n", prop_type_byte, len,
+			value[0], value[1], value[2], value[3]);
 
-	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
-	ret = write(ctlfd, cmd_string, size);
+	left_len = len;
+	for (j = 0; j < (len + MAX_PROP_VALUE_SIZE - 1) / MAX_PROP_VALUE_SIZE; j++) {
+		set_len = left_len > MAX_PROP_VALUE_SIZE ? MAX_PROP_VALUE_SIZE : left_len;
+		size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d", 0,
+				cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], set_len + 1,
+				prop_type_byte);
+		for (i = 0; i < set_len; i++) {
+			size += snprintf(cmd_string + size, MAX_STRING_SIZE - size, " %d", p[i]);
+		}
 
-	log_message(DEBUG, "cmd return value is %d\n", ret);
-	if (ret < 0)
-		return -1;
+		log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
+		ret = write(ctlfd, cmd_string, size);
+		log_message(DEBUG, "cmd return value is %d\n", ret);
+
+                while (ret < 0)
+			return -1;
+
+		p += set_len;
+		left_len -= set_len;
+	}
 
 	return 0;
 }
@@ -1046,7 +1070,7 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		else
 			return ERR_SESSION_NOT_EXIST;
 	} else if (cmd == CMD_SET_PROPERTY) {
-		send_set_property(sensor_type, p_cmd->parameter, p_cmd->parameter1);
+		send_set_property(sensor_type, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);
 	}
 
 	return SUCCESS;
@@ -2219,6 +2243,7 @@ void handle_screen_state_change(void)
 static void handle_no_stop_no_report()
 {
 	int i;
+	int value;
 	session_state_t *p;
 
 	for (i = 0; i < SENSOR_MAX; i++) {
@@ -2233,9 +2258,11 @@ static void handle_no_stop_no_report()
 				//TODO: send set_property to psh fw
 				if (i == SENSOR_PEDOMETER) {
 					if (screen_state == 0) {
-						send_set_property(i, PROP_STOP_REPORTING, 1);
+						value = 1;
+						send_set_property(i, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
 					} else {
-						send_set_property(i, PROP_STOP_REPORTING, 0);
+						value = 0;
+						send_set_property(i, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
 					}
 				}
 			}

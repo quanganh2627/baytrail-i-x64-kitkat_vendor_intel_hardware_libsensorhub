@@ -630,9 +630,16 @@ short psh_get_event_id(handle_t handle)
 
 error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 {
+	int ret;
+	ret = psh_set_property_with_size(handle, prop_type, 4, value);
+	return ret;
+}
+
+error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int size, void *value)
+{
 	session_context_t *session_context = (session_context_t *)handle;
 	psh_sensor_t sensor_type;
-	cmd_event cmd;
+	cmd_event *cmd;
 	int ret, event_type;
 	char message[MAX_MESSAGE_LENGTH];
 	cmd_ack_event *p_cmd_ack;
@@ -640,12 +647,18 @@ error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	cmd.event_type = EVENT_CMD;
-	cmd.cmd = CMD_SET_PROPERTY;
-	cmd.parameter = prop_type;
-	cmd.parameter1 = (int)(*(int *)(value));
+	cmd = malloc(sizeof(cmd_event) + size);
+	if (cmd == NULL)
+		return ERROR_NOT_AVAILABLE;
 
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
+	cmd->event_type = EVENT_CMD;
+	cmd->cmd = CMD_SET_PROPERTY;
+	cmd->parameter = prop_type;
+	cmd->parameter1 = size;
+	memcpy(cmd->buf, value, size);
+
+	ret = send(session_context->ctlfd, cmd, sizeof(cmd_event) + size, 0);
+	free(cmd);
 	if (ret <= 0)
 		return ERROR_MESSAGE_NOT_SENT;
 
