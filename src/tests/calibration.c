@@ -14,7 +14,7 @@
 
 static void dump_calibration_info(int gyro, struct cmd_calibration_param * param)
 {
-	printf ("Status: %s\n", param->calibrated?"calbrated":"not calibrated");
+	printf ("calibration result: %u\n", param->calibrated);
 
 	if (gyro) {
 		printf ("x y z: %d %d %d\n", param->cal_param.gyro.x,
@@ -30,7 +30,7 @@ static void dump_calibration_info(int gyro, struct cmd_calibration_param * param
 						param->cal_param.compass.w[0][2],
 						param->cal_param.compass.w[1][0],
 						param->cal_param.compass.w[1][1],
-						param->cal_param.compass.w[2][2],
+						param->cal_param.compass.w[1][2],
 						param->cal_param.compass.w[2][0],
 						param->cal_param.compass.w[2][1],
 						param->cal_param.compass.w[2][2]);

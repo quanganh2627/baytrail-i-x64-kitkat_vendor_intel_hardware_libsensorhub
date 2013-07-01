@@ -665,7 +665,7 @@ static void set_calibration(psh_sensor_t sensor_type,
 
 		if (param->calibrated != SUBCMD_CALIBRATION_TRUE) {
 			log_message(DEBUG, "Set calibration with confused parameter,"
-						"calibrated is %d\n",param->calibrated);
+						"calibrated is %u\n",param->calibrated);
 
 			return;
 		}
@@ -1888,7 +1888,7 @@ static void handle_calibration(struct cmd_calibration_param * param){
 
 	p_session_state = sensor_list[sensor_type].list;
 
-	log_message(DEBUG, "Subcmd:%d.  Calibrated? %d\n", param->sub_cmd, param->calibrated);
+	log_message(DEBUG, "Subcmd:%d.  Calibrated? %u\n", param->sub_cmd, param->calibrated);
 
 	for (; p_session_state != NULL;
 			p_session_state = p_session_state->next){
@@ -1917,7 +1917,7 @@ fail:
 		p_session_state->get_calibration = 0;
 	}
 
-	if (param->calibrated) {
+	if (param->calibrated == SUBCMD_CALIBRATION_TRUE) {
 		param->sub_cmd = SUBCMD_CALIBRATION_SET;
 		set_calibration_status(sensor_type, CALIBRATION_DONE, param);
 	} else {
@@ -2057,9 +2057,7 @@ static void dispatch_data()
 
 			param.sensor_type = SENSOR_CALIBRATION_COMP;
 			param.sub_cmd = SUBCMD_CALIBRATION_GET;
-			param.calibrated = (p->calib_result == CALIB_RESULT_NONE) ?
-								SUBCMD_CALIBRATION_FALSE :
-								SUBCMD_CALIBRATION_TRUE;
+			param.calibrated = p->calib_result;
 			param.cal_param.compass = p->info;
 			handle_calibration(&param);
 		} else if (p_cmd_resp->cmd_type == RESP_GYRO_CAL_RESULT){
@@ -2072,9 +2070,7 @@ static void dispatch_data()
 
 			param.sensor_type = SENSOR_CALIBRATION_GYRO;
 			param.sub_cmd = SUBCMD_CALIBRATION_GET;
-			param.calibrated = (p->calib_result == CALIB_RESULT_NONE) ?
-								SUBCMD_CALIBRATION_FALSE :
-								SUBCMD_CALIBRATION_TRUE;
+			param.calibrated = p->calib_result;
 			param.cal_param.gyro = p->info;
 			handle_calibration(&param);
 		} else if (p_cmd_resp->cmd_type == RESP_ADD_EVENT) {
