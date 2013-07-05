@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <pthread.h>
+#include <hardware_legacy/power.h>
 
 #include "../include/socket.h"
 #include "../include/utils.h"
@@ -31,6 +32,8 @@
 
 #define WAKE_NODE "/sys/power/wait_for_fb_wake"
 #define SLEEP_NODE "/sys/power/wait_for_fb_sleep"
+
+static const char *WAKE_LOCK_ID = "Sensorhubd";
 
 /* The Unix socket file descriptor */
 static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1;
@@ -538,8 +541,13 @@ static void stop_streaming(psh_sensor_t sensor_type,
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
 
-	if ((p_session_state->state == INACTIVE) || (p_session_state->state == NEED_RESUME))
+	if (p_session_state->state == INACTIVE)
 		return;
+
+	if (p_session_state->state == NEED_RESUME) {
+		p_session_state->state = INACTIVE;
+		return;
+	}
 
 	data_rate_arbitered = data_rate_arbiter(sensor_type,
 						p_session_state->data_rate,
@@ -2212,7 +2220,7 @@ void handle_screen_state_change(void)
 	session_state_t *p;
 
 	if (screen_state == 0) {
-		for (i = 0; i <= SENSOR_9DOF; i++) {
+		for (i = 0; i < SENSOR_BIST; i++) {
 			/* calibration is not stopped */
 			if (i == SENSOR_CALIBRATION_COMP ||
 				i == SENSOR_CALIBRATION_GYRO)
@@ -2229,7 +2237,7 @@ void handle_screen_state_change(void)
 			}
 		}
 	} else if (screen_state == 1) {
-		for (i = 0; i <= SENSOR_9DOF; i++) {
+		for (i = 0; i < SENSOR_BIST; i++) {
 			/* calibration is not stopped */
 			if (i == SENSOR_CALIBRATION_COMP ||
 				i == SENSOR_CALIBRATION_GYRO)
@@ -2253,7 +2261,7 @@ static void handle_no_stop_no_report()
 	int value;
 	session_state_t *p;
 
-	for (i = 0; i < SENSOR_MAX; i++) {
+	for (i = 0; i < SENSOR_BIST; i++) {
 		if (i == SENSOR_CALIBRATION_COMP ||
 			i == SENSOR_CALIBRATION_GYRO)
 			continue;
@@ -2321,6 +2329,9 @@ static void start_sensorhubd()
 		maxfd = datasizefd;
 	/* get data from data node and dispatch it to clients, end */
 
+
+	acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
 	while (1) {
 		read_fds = listen_fds;
 		FD_SET(datasizefd, &datasize_fds);
@@ -2334,6 +2345,7 @@ static void start_sensorhubd()
 				LOGE("sensorhubd socket "
 					"select() failed. errno "
 					"is %d\n", errno);
+				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -2348,6 +2360,7 @@ static void start_sensorhubd()
 			if (clientfd == -1) {
 				LOGE("sensorhubd socket "
 					"accept() failed.\n");
+				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			} else {
 				LOGI("new connection from client\n");
@@ -2373,9 +2386,16 @@ static void start_sensorhubd()
 			if (ret > 0)
 				log_message(DEBUG, "Get notification,buf is %s, screen state is %d \n", buf, screen_state);
 
-//			handle_screen_state_change();
+			// make sure sensor start/stop is not interrupted by S3 suspend
+			if (screen_state == 1)
+				acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
+			handle_screen_state_change();
 			handle_no_stop_no_report();
 			FD_CLR(notifyfds[0], &read_fds);
+
+			if (screen_state == 0)
+				release_wake_lock(WAKE_LOCK_ID);
 		}
 
 		/* handle wake/sleep notification, end */

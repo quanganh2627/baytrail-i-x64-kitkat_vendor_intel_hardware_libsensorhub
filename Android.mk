@@ -14,7 +14,7 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)
 LOCAL_SRC_FILES := src/daemon/main.c \
 			src/utils/utils.c
 
-LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy
 
 LOCAL_MODULE := sensorhubd
 
