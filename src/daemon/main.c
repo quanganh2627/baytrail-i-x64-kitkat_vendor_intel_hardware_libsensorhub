@@ -1372,7 +1372,8 @@ static void send_data_to_clients(psh_sensor_t sensor_type, void *data,
 				|| (sensor_type == SENSOR_PEDOMETER)
 				|| (sensor_type == SENSOR_SHAKING)
 				|| (sensor_type == SENSOR_MOVE_DETECT)
-				|| (sensor_type == SENSOR_STAP)) {
+				|| (sensor_type == SENSOR_STAP)
+				|| (sensor_type == SENSOR_LPE)) {
 //			write(p_session_state->datafd, data, size);
 			send(p_session_state->datafd, data, size, MSG_NOSIGNAL);
 			continue;
