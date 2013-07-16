@@ -262,8 +262,8 @@ struct gyrocal_info {
 #define SUBCMD_CALIBRATION_START	(0x3)
 #define SUBCMD_CALIBRATION_STOP		(0x4)
 
-#define SUBCMD_CALIBRATION_TRUE		(0xFF)
-#define SUBCMD_CALIBRATION_FALSE 	(0x0)
+#define SUBCMD_CALIBRATION_TRUE		(100)
+#define SUBCMD_CALIBRATION_FALSE 	(0)
 struct cmd_calibration_param {
 	psh_sensor_t sensor_type;
 	unsigned char sub_cmd;
