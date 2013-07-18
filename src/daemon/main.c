@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <linux/un.h>
@@ -27,10 +28,6 @@
 
 #define MAX_STRING_SIZE 256
 #define MAX_PROP_VALUE_SIZE 58
-
-#define MAX_DEV_NODE_NUM 8
-
-static int node_number = 2;
 
 #define WAKE_NODE "/sys/power/wait_for_fb_wake"
 #define SLEEP_NODE "/sys/power/wait_for_fb_sleep"
@@ -1175,6 +1172,9 @@ static void reset_sensorhub()
 {
 	struct sockaddr_un serv_addr;
 	char node_path[MAX_STRING_SIZE];
+	DIR * dirp;
+	struct dirent * entry;
+	int found = 0;
 
 	if (ctlfd != -1) {
 		close(ctlfd);
@@ -1207,14 +1207,20 @@ static void reset_sensorhub()
 	}
 
 	/* detect the device node */
-	for (node_number = 0; node_number < MAX_DEV_NODE_NUM; node_number++) {
-		struct stat f_stat;
+	dirp = opendir("/sys/class/hwmon");
+	if (dirp == NULL) {
+		LOGE("can't find device node \n");
+		exit(EXIT_FAILURE);
+	}
+
+	while ((entry = readdir(dirp)) != NULL) {
 		int fd;
 		char magic_string[32];
 
-		snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/modalias", node_number);
-		if (stat(node_path, &f_stat) != 0)
+		if ((strcmp((const char *)entry->d_name, ".") == 0) ||(strcmp((const char *)entry->d_name, "..") == 0))
 			continue;
+
+		snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/modalias", entry->d_name);
 
 		fd = open(node_path, O_RDONLY);
 		if (fd == -1)
@@ -1228,25 +1234,27 @@ static void reset_sensorhub()
 
 		if (strstr(magic_string, "11A4") != NULL) {
 			platform = MERRIFIELD;
+			found = 1;
 			break;
 		}
 
 		if ((strstr(magic_string, "psh") != NULL)
 			|| (strstr(magic_string, "SMO91D0:00") != NULL)) {
 			platform = BAYTRAIL;
+			found = 1;
 			break;
 		}
 	}
 
-	log_message(DEBUG, "node_number is %d \n", node_number);
-
-	if (node_number == MAX_DEV_NODE_NUM) {
+	if (found == 0) {
 		LOGE("can't find device node \n");
 		exit(EXIT_FAILURE);
 	}
 
+	log_message(DEBUG, "detected node dir is %s \n", entry->d_name);
+
 	/* open control node */
-	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/control", node_number);
+	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/control", entry->d_name);
 	ctlfd = open(node_path, O_WRONLY);
 	if (ctlfd == -1) {
 		LOGE("open %s failed, errno is %d\n",
@@ -1257,7 +1265,7 @@ static void reset_sensorhub()
 	/* TODO: send 'reset' cmd */
 
 	/* open data node */
-	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/data", node_number);
+	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/data", entry->d_name);
 	datafd = open(node_path, O_RDONLY);
 	if (datafd == -1) {
 		LOGE("open %s failed, errno is %d\n",
@@ -1266,13 +1274,15 @@ static void reset_sensorhub()
 	}
 
 	/* open data_size node */
-	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/hwmon%d/device/data_size", node_number);
+	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/data_size", entry->d_name);
 	datasizefd = open(node_path, O_RDONLY);
 	if (datasizefd == -1) {
 		LOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
+
+	closedir(dirp);
 
 	/* create sensorhubd Unix socket */
 	sockfd = socket(AF_LOCAL, SOCK_STREAM, 0);
