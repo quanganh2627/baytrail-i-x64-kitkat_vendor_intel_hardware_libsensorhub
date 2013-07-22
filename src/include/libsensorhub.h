@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 typedef enum {
+        SENSOR_INVALID = -1,
 	SENSOR_ACCELEROMETER = 0,
 	SENSOR_GYRO,
 	SENSOR_COMP,
