@@ -29,11 +29,15 @@
 #define MAX_STRING_SIZE 256
 #define MAX_PROP_VALUE_SIZE 58
 
+#define MAX_FW_VERSION_STR_LEN 64
+#define BYT_FW "/system/etc/firmware/psh_bk.bin"
+#define FWUPDATE_SCRIPT "/system/bin/fwupdate_script.sh "
+
 #define WAKE_NODE "/sys/power/wait_for_fb_wake"
 #define SLEEP_NODE "/sys/power/wait_for_fb_sleep"
 
 /* The Unix socket file descriptor */
-static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1;
+static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1, fwversionfd = -1;
 
 static int screen_state;
 static int enable_debug_data_rate = 0;
@@ -574,6 +578,83 @@ static void stop_streaming(psh_sensor_t sensor_type,
 	log_message(DEBUG, "CMD_STOP_STREAMING, data_rate_arbitered is %d, "
 			"buffer_delay_arbitered is %d \n", data_rate_arbitered,
 			buffer_delay_arbitered);
+}
+
+static int get_fw_version(char *fw_version_str)
+{
+	FILE *fp;
+	int filelen;
+	char *ver_p = NULL;
+	int n = 0;
+	int ret = 0;
+
+	fp = fopen(BYT_FW, "r");
+	if (fp == NULL) {
+		log_message(CRITICAL,"Failed to open firmware file !!!\r\n");
+		return -1;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	filelen = ftell(fp);
+
+	char *buf = malloc(filelen + 1);
+	fseek(fp, 0, SEEK_SET);
+	fread(buf, 1, filelen, fp);
+	buf[filelen]='\0';
+
+	while(ver_p == NULL) {
+		ver_p = strstr(buf+n, "VERSION:");
+		if (ver_p == NULL) {
+			while ((n<(filelen-8))&&(buf[n]!='\0'))
+				n++;
+
+			while ((n<(filelen-8))&&(buf[n]=='\0'))
+				n++;
+		}
+		if (n>=(filelen-8)) break;
+	}
+
+	if (ver_p!=NULL) {
+		/* filter string"VERSION:" */
+		strncpy(fw_version_str, ver_p+8, MAX_FW_VERSION_STR_LEN-1);
+		ret = 0;
+	} else {
+		ret = -1;
+	}
+
+	fclose(fp);
+	free(buf);
+
+	return ret;
+}
+
+static int fw_verion_compare()
+{
+	char version_str_running[MAX_FW_VERSION_STR_LEN];
+	char version_str[MAX_FW_VERSION_STR_LEN];
+	int length = 0;
+
+	if (get_fw_version(version_str))
+		return -2;
+
+	version_str[MAX_FW_VERSION_STR_LEN-1] = '\0';
+
+	length = strlen(version_str);
+
+	lseek(fwversionfd, 0, SEEK_SET);
+	if (read(fwversionfd, version_str_running, MAX_FW_VERSION_STR_LEN) <= 0) {
+		log_message(CRITICAL, "can not get the running fw version!!!\n");
+		return -1;
+	}
+
+	version_str_running[length-1] = '\0';
+
+	if (strcmp(version_str, version_str_running)) {
+		log_message(CRITICAL, "psh firmware versions are not same!!!\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 static void get_single(psh_sensor_t sensor_type,
@@ -1206,6 +1287,11 @@ static void reset_sensorhub()
 		sleepfd = -1;
 	}
 
+	if (fwversionfd != -1) {
+		close(fwversionfd);
+		fwversionfd = -1;
+	}
+
 	/* detect the device node */
 	dirp = opendir("/sys/class/hwmon");
 	if (dirp == NULL) {
@@ -1312,6 +1398,15 @@ static void reset_sensorhub()
 	if (sleepfd == -1) {
 		LOGE("open %s failed, errno is %d\n",
 			SLEEP_NODE, errno);
+		exit(EXIT_FAILURE);
+	}
+
+	/* open fwversion node */
+	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/fw_version", entry->d_name);
+	fwversionfd = open(node_path, O_RDONLY);
+	if (fwversionfd == -1) {
+		LOGE("open %s failed, errno is %d\n",
+			node_path, errno);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -2671,9 +2766,20 @@ int main(int argc, char **argv)
 	while (1) {
 		reset_sensorhub();
 		if (platform == BAYTRAIL)
-			system("/system/bin/fwupdate_script.sh /system/etc/firmware/psh_bk.bin");
+			/* if fwupdat.flag is not exist or update failed, update fw */
+			system(FWUPDATE_SCRIPT BYT_FW);
 //		sleep(60);
 		setup_psh();
+
+		if (platform == BAYTRAIL) {
+			/* fw version is not same or can't get version, update firmware */
+			if (fw_verion_compare() == -1) {
+				send_control_cmd(0, 255, 0, 0, 0);
+				system(FWUPDATE_SCRIPT BYT_FW " force");
+				setup_psh();
+			}
+		}
+
 		get_status();
 //		reset_client_sessions();
 		start_sensorhubd();
