@@ -1096,7 +1096,7 @@ static void handle_message(int fd, char *message)
 		psh_sensor_t sensor_type =
 					p_hello_with_sensor_type->sensor_type;
 
-		if ((sensor_type > SENSOR_MAX) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
+		if ((sensor_type >= SENSOR_MAX) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
 			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
@@ -1144,6 +1144,11 @@ static void handle_message(int fd, char *message)
 		session_id_t session_id = p_hello_with_session_id->session_id;
 		session_state_t *p_session_state =
 				get_session_state_with_session_id(session_id);
+
+		if (p_session_state == NULL) {
+			LOGE("handle_message(): EVENT_HELLO_WITH_SESSION_ID, not find matching session_id \n");
+			return;
+		}
 
 		p_session_state->ctlfd = fd;
 
@@ -2013,6 +2018,7 @@ static void dispatch_data()
 	int ret, data_size, left = 0;
 	struct cmd_resp *p_cmd_resp;
 	struct timeval tv, tv1;
+	char datasize_buf[8];
 
 	if (buf == NULL)
 		buf = (char *)malloc(128 * 1024);
@@ -2029,11 +2035,15 @@ static void dispatch_data()
 
 	/* read data_size node */
 	lseek(datasizefd, 0, SEEK_SET);
-	ret = read(datasizefd, buf, 128 * 1024);
+	ret = read(datasizefd, datasize_buf, 8);
 	if (ret <= 0)
 		return;
 
-	sscanf(buf, "%d", &data_size);
+	datasize_buf[7] = '\0';
+	sscanf(datasize_buf, "%d", &data_size);
+
+	if ((data_size <= 0) || (data_size > 128 * 1024))
+		return;
 
 	left = data_size;
 
