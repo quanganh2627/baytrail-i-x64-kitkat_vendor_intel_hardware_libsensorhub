@@ -146,6 +146,10 @@ static void daemonize()
 		LOGE("error in setsid(). \n");
 		exit(EXIT_FAILURE);
 	}
+#ifdef GCOV_DAEMON
+	/* just for gcov test, others can ignore it */
+	gcov_thread_start();
+#endif
 
 	/* close STD fds */
 	close(STDIN_FILENO);
