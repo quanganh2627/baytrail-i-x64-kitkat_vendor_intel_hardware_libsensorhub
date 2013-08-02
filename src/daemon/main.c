@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <pthread.h>
+#include <hardware_legacy/power.h>
 
 #include "../include/socket.h"
 #include "../include/utils.h"
@@ -29,11 +30,17 @@
 #define MAX_STRING_SIZE 256
 #define MAX_PROP_VALUE_SIZE 58
 
+#define MAX_FW_VERSION_STR_LEN 64
+#define BYT_FW "/system/etc/firmware/psh_bk.bin"
+#define FWUPDATE_SCRIPT "/system/bin/fwupdate_script.sh "
+
 #define WAKE_NODE "/sys/power/wait_for_fb_wake"
 #define SLEEP_NODE "/sys/power/wait_for_fb_sleep"
 
+static const char *WAKE_LOCK_ID = "Sensorhubd";
+
 /* The Unix socket file descriptor */
-static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1;
+static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1, fwversionfd = -1;
 
 static int screen_state;
 static int enable_debug_data_rate = 0;
@@ -538,8 +545,13 @@ static void stop_streaming(psh_sensor_t sensor_type,
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
 
-	if ((p_session_state->state == INACTIVE) || (p_session_state->state == NEED_RESUME))
+	if (p_session_state->state == INACTIVE)
 		return;
+
+	if (p_session_state->state == NEED_RESUME) {
+		p_session_state->state = INACTIVE;
+		return;
+	}
 
 	data_rate_arbitered = data_rate_arbiter(sensor_type,
 						p_session_state->data_rate,
@@ -574,6 +586,83 @@ static void stop_streaming(psh_sensor_t sensor_type,
 	log_message(DEBUG, "CMD_STOP_STREAMING, data_rate_arbitered is %d, "
 			"buffer_delay_arbitered is %d \n", data_rate_arbitered,
 			buffer_delay_arbitered);
+}
+
+static int get_fw_version(char *fw_version_str)
+{
+	FILE *fp;
+	int filelen;
+	char *ver_p = NULL;
+	int n = 0;
+	int ret = 0;
+
+	fp = fopen(BYT_FW, "r");
+	if (fp == NULL) {
+		log_message(CRITICAL,"Failed to open firmware file !!!\r\n");
+		return -1;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	filelen = ftell(fp);
+
+	char *buf = malloc(filelen + 1);
+	fseek(fp, 0, SEEK_SET);
+	fread(buf, 1, filelen, fp);
+	buf[filelen]='\0';
+
+	while(ver_p == NULL) {
+		ver_p = strstr(buf+n, "VERSION:");
+		if (ver_p == NULL) {
+			while ((n<(filelen-8))&&(buf[n]!='\0'))
+				n++;
+
+			while ((n<(filelen-8))&&(buf[n]=='\0'))
+				n++;
+		}
+		if (n>=(filelen-8)) break;
+	}
+
+	if (ver_p!=NULL) {
+		/* filter string"VERSION:" */
+		strncpy(fw_version_str, ver_p+8, MAX_FW_VERSION_STR_LEN-1);
+		ret = 0;
+	} else {
+		ret = -1;
+	}
+
+	fclose(fp);
+	free(buf);
+
+	return ret;
+}
+
+static int fw_verion_compare()
+{
+	char version_str_running[MAX_FW_VERSION_STR_LEN];
+	char version_str[MAX_FW_VERSION_STR_LEN];
+	int length = 0;
+
+	if (get_fw_version(version_str))
+		return -2;
+
+	version_str[MAX_FW_VERSION_STR_LEN-1] = '\0';
+
+	length = strlen(version_str);
+
+	lseek(fwversionfd, 0, SEEK_SET);
+	if (read(fwversionfd, version_str_running, MAX_FW_VERSION_STR_LEN) <= 0) {
+		log_message(CRITICAL, "can not get the running fw version!!!\n");
+		return -1;
+	}
+
+	version_str_running[length-1] = '\0';
+
+	if (strcmp(version_str, version_str_running)) {
+		log_message(CRITICAL, "psh firmware versions are not same!!!\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 static void get_single(psh_sensor_t sensor_type,
@@ -1088,7 +1177,7 @@ static void handle_message(int fd, char *message)
 		psh_sensor_t sensor_type =
 					p_hello_with_sensor_type->sensor_type;
 
-		if ((sensor_type > SENSOR_MAX) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
+		if ((sensor_type >= SENSOR_MAX) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
 			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
@@ -1136,6 +1225,11 @@ static void handle_message(int fd, char *message)
 		session_id_t session_id = p_hello_with_session_id->session_id;
 		session_state_t *p_session_state =
 				get_session_state_with_session_id(session_id);
+
+		if (p_session_state == NULL) {
+			LOGE("handle_message(): EVENT_HELLO_WITH_SESSION_ID, not find matching session_id \n");
+			return;
+		}
 
 		p_session_state->ctlfd = fd;
 
@@ -1204,6 +1298,11 @@ static void reset_sensorhub()
 	if (sleepfd != -1) {
 		close(sleepfd);
 		sleepfd = -1;
+	}
+
+	if (fwversionfd != -1) {
+		close(fwversionfd);
+		fwversionfd = -1;
 	}
 
 	/* detect the device node */
@@ -1312,6 +1411,15 @@ static void reset_sensorhub()
 	if (sleepfd == -1) {
 		LOGE("open %s failed, errno is %d\n",
 			SLEEP_NODE, errno);
+		exit(EXIT_FAILURE);
+	}
+
+	/* open fwversion node */
+	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/fw_version", entry->d_name);
+	fwversionfd = open(node_path, O_RDONLY);
+	if (fwversionfd == -1) {
+		LOGE("open %s failed, errno is %d\n",
+			node_path, errno);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -2005,6 +2113,7 @@ static void dispatch_data()
 	int ret, data_size, left = 0;
 	struct cmd_resp *p_cmd_resp;
 	struct timeval tv, tv1;
+	char datasize_buf[8];
 
 	if (buf == NULL)
 		buf = (char *)malloc(128 * 1024);
@@ -2021,11 +2130,15 @@ static void dispatch_data()
 
 	/* read data_size node */
 	lseek(datasizefd, 0, SEEK_SET);
-	ret = read(datasizefd, buf, 128 * 1024);
+	ret = read(datasizefd, datasize_buf, 8);
 	if (ret <= 0)
 		return;
 
-	sscanf(buf, "%d", &data_size);
+	datasize_buf[7] = '\0';
+	sscanf(datasize_buf, "%d", &data_size);
+
+	if ((data_size <= 0) || (data_size > 128 * 1024))
+		return;
 
 	left = data_size;
 
@@ -2212,7 +2325,7 @@ void handle_screen_state_change(void)
 	session_state_t *p;
 
 	if (screen_state == 0) {
-		for (i = 0; i <= SENSOR_9DOF; i++) {
+		for (i = 0; i < SENSOR_BIST; i++) {
 			/* calibration is not stopped */
 			if (i == SENSOR_CALIBRATION_COMP ||
 				i == SENSOR_CALIBRATION_GYRO)
@@ -2229,7 +2342,7 @@ void handle_screen_state_change(void)
 			}
 		}
 	} else if (screen_state == 1) {
-		for (i = 0; i <= SENSOR_9DOF; i++) {
+		for (i = 0; i < SENSOR_BIST; i++) {
 			/* calibration is not stopped */
 			if (i == SENSOR_CALIBRATION_COMP ||
 				i == SENSOR_CALIBRATION_GYRO)
@@ -2253,7 +2366,7 @@ static void handle_no_stop_no_report()
 	int value;
 	session_state_t *p;
 
-	for (i = 0; i < SENSOR_MAX; i++) {
+	for (i = 0; i < SENSOR_BIST; i++) {
 		if (i == SENSOR_CALIBRATION_COMP ||
 			i == SENSOR_CALIBRATION_GYRO)
 			continue;
@@ -2321,6 +2434,9 @@ static void start_sensorhubd()
 		maxfd = datasizefd;
 	/* get data from data node and dispatch it to clients, end */
 
+
+	acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
 	while (1) {
 		read_fds = listen_fds;
 		FD_SET(datasizefd, &datasize_fds);
@@ -2334,6 +2450,7 @@ static void start_sensorhubd()
 				LOGE("sensorhubd socket "
 					"select() failed. errno "
 					"is %d\n", errno);
+				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -2348,6 +2465,7 @@ static void start_sensorhubd()
 			if (clientfd == -1) {
 				LOGE("sensorhubd socket "
 					"accept() failed.\n");
+				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			} else {
 				LOGI("new connection from client\n");
@@ -2373,9 +2491,16 @@ static void start_sensorhubd()
 			if (ret > 0)
 				log_message(DEBUG, "Get notification,buf is %s, screen state is %d \n", buf, screen_state);
 
-//			handle_screen_state_change();
+			// make sure sensor start/stop is not interrupted by S3 suspend
+			if (screen_state == 1)
+				acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
+			handle_screen_state_change();
 			handle_no_stop_no_report();
 			FD_CLR(notifyfds[0], &read_fds);
+
+			if (screen_state == 0)
+				release_wake_lock(WAKE_LOCK_ID);
 		}
 
 		/* handle wake/sleep notification, end */
@@ -2671,9 +2796,20 @@ int main(int argc, char **argv)
 	while (1) {
 		reset_sensorhub();
 		if (platform == BAYTRAIL)
-			system("/system/bin/fwupdate_script.sh /system/etc/firmware/psh_bk.bin");
+			/* if fwupdat.flag is not exist or update failed, update fw */
+			system(FWUPDATE_SCRIPT BYT_FW);
 //		sleep(60);
 		setup_psh();
+
+		if (platform == BAYTRAIL) {
+			/* fw version is not same or can't get version, update firmware */
+			if (fw_verion_compare() == -1) {
+				send_control_cmd(0, 255, 0, 0, 0);
+				system(FWUPDATE_SCRIPT BYT_FW " force");
+				setup_psh();
+			}
+		}
+
 		get_status();
 //		reset_client_sessions();
 		start_sensorhubd();
