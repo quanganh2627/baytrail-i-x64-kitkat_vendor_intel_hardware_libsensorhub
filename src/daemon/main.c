@@ -606,6 +606,11 @@ static int get_fw_version(char *fw_version_str)
 	filelen = ftell(fp);
 
 	char *buf = malloc(filelen + 1);
+	if (buf == NULL) {
+		fclose(fp);
+		return -1;
+	}
+
 	fseek(fp, 0, SEEK_SET);
 	fread(buf, 1, filelen, fp);
 	buf[filelen]='\0';
@@ -648,6 +653,10 @@ static int fw_verion_compare()
 	version_str[MAX_FW_VERSION_STR_LEN-1] = '\0';
 
 	length = strlen(version_str);
+	if (length<8) {
+		log_message(CRITICAL, "fw version string is error!!!\n");
+		return -1;
+	}
 
 	lseek(fwversionfd, 0, SEEK_SET);
 	if (read(fwversionfd, version_str_running, MAX_FW_VERSION_STR_LEN) <= 0) {
