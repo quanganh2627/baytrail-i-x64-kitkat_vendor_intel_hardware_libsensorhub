@@ -664,7 +664,7 @@ static int fw_verion_compare()
 		return -1;
 	}
 
-	version_str_running[length-1] = '\0';
+	version_str_running[length] = '\0';
 
 	if (strcmp(version_str, version_str_running)) {
 		log_message(CRITICAL, "psh firmware versions are not same!!!\n");
