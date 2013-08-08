@@ -64,7 +64,7 @@ include $(BUILD_EXECUTABLE)
 #
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
@@ -78,7 +78,7 @@ LOCAL_MODULE := test_alek
 #
 include $(CLEAR_VARS)
 
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)
 
