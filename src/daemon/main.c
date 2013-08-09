@@ -146,6 +146,10 @@ static void daemonize()
 		LOGE("error in setsid(). \n");
 		exit(EXIT_FAILURE);
 	}
+#ifdef GCOV_DAEMON
+	/* just for gcov test, others can ignore it */
+	gcov_thread_start();
+#endif
 
 	/* close STD fds */
 	close(STDIN_FILENO);
@@ -606,6 +610,11 @@ static int get_fw_version(char *fw_version_str)
 	filelen = ftell(fp);
 
 	char *buf = malloc(filelen + 1);
+	if (buf == NULL) {
+		fclose(fp);
+		return -1;
+	}
+
 	fseek(fp, 0, SEEK_SET);
 	fread(buf, 1, filelen, fp);
 	buf[filelen]='\0';
@@ -648,6 +657,10 @@ static int fw_verion_compare()
 	version_str[MAX_FW_VERSION_STR_LEN-1] = '\0';
 
 	length = strlen(version_str);
+	if (length<8) {
+		log_message(CRITICAL, "fw version string is error!!!\n");
+		return -1;
+	}
 
 	lseek(fwversionfd, 0, SEEK_SET);
 	if (read(fwversionfd, version_str_running, MAX_FW_VERSION_STR_LEN) <= 0) {
@@ -655,7 +668,7 @@ static int fw_verion_compare()
 		return -1;
 	}
 
-	version_str_running[length-1] = '\0';
+	version_str_running[length] = '\0';
 
 	if (strcmp(version_str, version_str_running)) {
 		log_message(CRITICAL, "psh firmware versions are not same!!!\n");
