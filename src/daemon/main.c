@@ -1123,6 +1123,11 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 	if (ret != 0)
 		return ERR_SESSION_NOT_EXIST;
 
+        if ((sensor_type >= SENSOR_MAX) || (sensor_type <= SENSOR_INVALID)) {
+                LOGE("handle_cmd(): sensor type %d not supported \n", sensor_type);
+                return ERR_SENSOR_NOT_SUPPORT;
+        }
+
 	log_message(DEBUG, "[%s] Ready to handle command %d\n", __func__, cmd);
 
 	if (cmd == CMD_START_STREAMING) {
@@ -1190,7 +1195,7 @@ static void handle_message(int fd, char *message)
 		psh_sensor_t sensor_type =
 					p_hello_with_sensor_type->sensor_type;
 
-		if ((sensor_type >= SENSOR_MAX) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
+		if ((sensor_type >= SENSOR_MAX) || (sensor_type <= SENSOR_INVALID) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
 			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
