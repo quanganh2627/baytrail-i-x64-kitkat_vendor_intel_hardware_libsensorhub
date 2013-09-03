@@ -18,6 +18,7 @@
 #include <pwd.h>
 #include <pthread.h>
 #include <hardware_legacy/power.h>
+#include <cutils/sockets.h>
 
 #include "../include/socket.h"
 #include "../include/utils.h"
@@ -1402,19 +1403,7 @@ static void reset_sensorhub()
 	closedir(dirp);
 
 	/* create sensorhubd Unix socket */
-	sockfd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	memset(&serv_addr, 0, sizeof(serv_addr));
-	serv_addr.sun_family = AF_LOCAL;
-	snprintf(serv_addr.sun_path, UNIX_PATH_MAX, UNIX_SOCKET_PATH);
-
-	unlink(UNIX_SOCKET_PATH);
-	int ret = bind(sockfd, (struct sockaddr *) &serv_addr,
-					sizeof(serv_addr));
-	if (ret != 0) {
-		LOGE("bind failed, ret is %d\n", ret);
-		exit(EXIT_FAILURE);
-	}
-
+	sockfd = android_get_control_socket(UNIX_SOCKET_PATH);
 	listen(sockfd, MAX_Q_LENGTH);
 
 	/* open wakeup and sleep sysfs node */
@@ -2859,7 +2848,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	daemonize();
+//	daemonize();
 
 	memset(sensor_list, 0, sizeof(sensor_list));
 	while (1) {

@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <linux/un.h>
 #include <assert.h>
+#include <cutils/sockets.h>
+
 #include "../include/message.h"
 #include "../include/socket.h"
 #include "../include/utils.h"
@@ -41,15 +43,10 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 		return NULL;
 
 	/* set up data connection */
-	datafd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_LOCAL;
-	snprintf(addr.sun_path, UNIX_PATH_MAX, UNIX_SOCKET_PATH);
+	datafd = socket_local_client(UNIX_SOCKET_PATH, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
 
-	ret = connect(datafd, (struct sockaddr *) &addr, sizeof(addr));
-	if (ret < 0) {
-		close(datafd);
-		LOGE("data connection setup failed \n");
+	if (datafd < 0) {
+		LOGE("socket_local_client() failed\n");
 		return NULL;
 	}
 
@@ -85,16 +82,9 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	}
 
 	/* set up control connection */
-	ctlfd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_LOCAL;
-	snprintf(addr.sun_path, UNIX_PATH_MAX, UNIX_SOCKET_PATH);
-
-	ret = connect(ctlfd, (struct sockaddr *) &addr, sizeof(addr));
-	if (ret < 0) {
-		close(datafd);
-		close(ctlfd);
-		LOGE("control connection setup failed \n");
+	ctlfd = socket_local_client("sensorhubd", ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
+	if (ctlfd < 0) {
+		LOGE("socket_local_client() failed\n");
 		return NULL;
 	}
 
