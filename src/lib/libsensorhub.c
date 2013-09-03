@@ -11,8 +11,6 @@
 #include "../include/utils.h"
 #include "../include/bist.h"
 
-#define MAX_DATA_RATE 100
-
 #undef LOG_TAG
 #define LOG_TAG "LibsensorhubClient"
 
@@ -243,13 +241,6 @@ error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer
 
 	if (data_rate == 0)
 		return ERROR_NOT_AVAILABLE;
-
-	/* check if the requested data_rate is supported by this
-	   type of sensor */
-	if (data_rate != 0) {
-		if ((MAX_DATA_RATE % data_rate) != 0)
-			return ERROR_DATA_RATE_NOT_SUPPORTED;
-	}
 
 	if ((flag != 0) && (flag != 1) && (flag != 2))
 		return ERROR_WRONG_PARAMETER;
