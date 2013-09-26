@@ -7,6 +7,7 @@
 #include <linux/un.h>
 #include <assert.h>
 #include <cutils/sockets.h>
+#include <fcntl.h>
 
 #include "../include/message.h"
 #include "../include/socket.h"
@@ -154,6 +155,10 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 					"session_context \n");
 		return NULL;
 	}
+
+	int flags;
+	flags = fcntl(datafd, F_GETFL, 0);
+	fcntl(datafd, F_SETFL, flags | O_NONBLOCK);
 
 	session_context->datafd = datafd;
 	session_context->ctlfd = ctlfd;
