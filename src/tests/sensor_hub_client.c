@@ -450,19 +450,19 @@ static void usage()
 					" 3, barometer; 4, ALS; 5, Proximity;"
 					" 6, terminal context;"
 					" 7, LPE;"
-					" 8, physical activity;"
-					" 9, gesture spotting;"
-					" 10, gesture flick;"
-					" 11, rotation vector;"
-					" 12, gravity;"
-					" 13, linear acceleration;"
-					" 14, orientation;"
-					" 17, 9dof;"
-					" 18, pedometer;"
-					" 19, magnetic heading;"
-					" 20, shaking;"
-					" 21, move detect"
-					" 22, stap\n");
+					" 14, physical activity;"
+					" 15, gesture spotting;"
+					" 16, gesture flick;"
+					" 17, rotation vector;"
+					" 18, gravity;"
+					" 19, linear acceleration;"
+					" 20, orientation;"
+					" 23, 9dof;"
+					" 24, pedometer;"
+					" 25, magnetic heading;"
+					" 26, shaking;"
+					" 27, move detect"
+					" 28, stap\n");
 	printf("  -r, --date-rate          unit is Hz\n");
 	printf("  -d, --buffer-delay       unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set       format: <property id>,<property value>\n");
@@ -692,8 +692,11 @@ int main(int argc, char **argv)
 
 		if (sensor_type == SENSOR_PEDOMETER)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 2);
+		else if (sensor_type == SENSOR_PROXIMITY)
+			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 1);
 		else
 			ret = psh_start_streaming(handle, data_rate, buffer_delay);
+
 		if (ret != ERROR_NONE) {
 			printf("psh_start_streaming() failed with code %d \n",
 									ret);

@@ -40,6 +40,8 @@
 
 static const char *WAKE_LOCK_ID = "Sensorhubd";
 
+#define IA_BIT_CFG_AS_WAKEUP_SRC ((unsigned short)(0x1 << 0))
+
 /* The Unix socket file descriptor */
 static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1, fwversionfd = -1;
 
@@ -367,6 +369,31 @@ static int buffer_delay_arbiter(psh_sensor_t sensor_type,
 	return data1;
 }
 
+/* return as long as anyone is ALWAYS_ON */
+static unsigned short bit_cfg_arbiter(psh_sensor_t sensor_type,
+                                unsigned short bit_cfg,
+                                session_state_t *p_session_state)
+{
+	session_state_t *p_session_state_tmp;
+
+	if (bit_cfg != 0)
+		return bit_cfg;
+
+	p_session_state_tmp = sensor_list[sensor_type].list;
+	while (p_session_state_tmp != NULL) {
+		if (p_session_state_tmp != p_session_state) {
+			if (p_session_state_tmp->state == ALWAYS_ON) {
+				return IA_BIT_CFG_AS_WAKEUP_SRC;
+			}
+		}
+
+		p_session_state_tmp = p_session_state_tmp->next;
+	}
+
+	return 0;
+}
+
+
 static int sensor_type_to_sensor_id[SENSOR_MAX] = { 0 };
 enum resp_type {
 	RESP_CMD_ACK,
@@ -386,7 +413,7 @@ enum resp_type {
 
 static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12};
 
-static int send_control_cmd(int tran_id, int cmd_id, int sensor_id, unsigned short data_rate, unsigned short buffer_delay);
+static int send_control_cmd(int tran_id, int cmd_id, int sensor_id, unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg);
 
 static void error_handling(int error_no)
 {
@@ -409,7 +436,7 @@ restart:
 			continue;
 
 		ret = send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING], sensor_type_to_sensor_id[i],
-				sensor_list[i].data_rate, sensor_list[i].buffer_delay);
+				sensor_list[i].data_rate, sensor_list[i].buffer_delay, 0);
 		if (ret < 0)
 			goto restart;
 	}
@@ -423,18 +450,19 @@ restart:
 
 /* 0 on success; -1 on fail */
 static int send_control_cmd(int tran_id, int cmd_id, int sensor_id,
-				unsigned short data_rate, unsigned short buffer_delay)
+				unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg)
 {
 	char cmd_string[MAX_STRING_SIZE];
 	int size;
 	ssize_t ret;
 	unsigned char *data_rate_byte = (unsigned char *)&data_rate;
 	unsigned char *buffer_delay_byte = (unsigned char *)&buffer_delay;
+	unsigned char *bit_cfg_byte = (unsigned char *)&bit_cfg;
 
-	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d %d %d",
+	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d %d %d %d %d",
 				tran_id, cmd_id, sensor_id, data_rate_byte[0],
 				data_rate_byte[1], buffer_delay_byte[0],
-				buffer_delay_byte[1]);
+				buffer_delay_byte[1], bit_cfg_byte[0], bit_cfg_byte[1]);
 	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
 	/* TODO: error handling if (size <= 0 || size > MAX_STRING_SIZE) */
 	ret = write(ctlfd, cmd_string, size);
@@ -496,6 +524,7 @@ static void start_streaming(psh_sensor_t sensor_type,
 				int data_rate, int buffer_delay, int flag)
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
+	unsigned short bit_cfg = 0;
 
 
 	if (data_rate != -1)
@@ -525,9 +554,14 @@ static void start_streaming(psh_sensor_t sensor_type,
 //		send_control_cmd(0, cmd_type_to_cmd_id[CMD_STOP_STREAMING],
 //				sensor_type_to_sensor_id[sensor_type], 0, 0);
 
-		send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
-				sensor_type_to_sensor_id[sensor_type],
-				data_rate_arbitered, buffer_delay_arbitered);
+	if (flag == 1)
+		bit_cfg = IA_BIT_CFG_AS_WAKEUP_SRC;
+	else
+		bit_cfg = bit_cfg_arbiter(sensor_type, 0, p_session_state);
+
+	send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
+			sensor_type_to_sensor_id[sensor_type],
+			data_rate_arbitered, buffer_delay_arbitered, bit_cfg);
 //	}
 
 	if (data_rate != 0) {
@@ -549,6 +583,7 @@ static void stop_streaming(psh_sensor_t sensor_type,
 				session_state_t *p_session_state)
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
+	unsigned short bit_cfg_arbitered;
 
 	if (p_session_state->state == INACTIVE)
 		return;
@@ -577,13 +612,14 @@ static void stop_streaming(psh_sensor_t sensor_type,
 	if (data_rate_arbitered != 0) {
 		/* send CMD_START_STREAMING to sysfs control node to
 		   re-config the data rate */
+		bit_cfg_arbitered = bit_cfg_arbiter(sensor_type, 0, p_session_state);
 		send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
 				sensor_type_to_sensor_id[sensor_type],
-				data_rate_arbitered, buffer_delay_arbitered);
+				data_rate_arbitered, buffer_delay_arbitered, bit_cfg_arbitered);
 	} else {
 		/* send CMD_STOP_STREAMING cmd to sysfs control node */
 		send_control_cmd(0, cmd_type_to_cmd_id[CMD_STOP_STREAMING],
-			sensor_type_to_sensor_id[sensor_type], 0, 0);
+			sensor_type_to_sensor_id[sensor_type], 0, 0, 0);
 	}
 
 //	sensor_list[sensor_type].count = 0;
@@ -688,7 +724,7 @@ static void get_single(psh_sensor_t sensor_type,
 	/* send CMD_GET_SINGLE to sysfs control node */
 	p_session_state->get_single = 1;
 	send_control_cmd(0, cmd_type_to_cmd_id[CMD_GET_SINGLE],
-			sensor_type_to_sensor_id[sensor_type], 0, 0);
+			sensor_type_to_sensor_id[sensor_type], 0, 0, 0);
 }
 
 static void get_calibration(psh_sensor_t sensor_type,
@@ -2523,7 +2559,7 @@ static void start_sensorhubd()
 			if (screen_state == 1)
 				acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
-			handle_screen_state_change();
+//			handle_screen_state_change();
 			handle_no_stop_no_report();
 			FD_CLR(notifyfds[0], &read_fds);
 
@@ -2559,9 +2595,9 @@ static void start_sensorhubd()
 static void setup_psh()
 {
 	// setup DDR
-	send_control_cmd(0, 1, 0, 0, 0);
+	send_control_cmd(0, 1, 0, 0, 0, 0);
 	// reset
-	send_control_cmd(0, 0, 0, 0, 0);
+	send_control_cmd(0, 0, 0, 0, 0, 0);
 
 	return;
 }
@@ -2862,7 +2898,7 @@ int main(int argc, char **argv)
 		if (platform == BAYTRAIL) {
 			/* fw version is not same or can't get version, update firmware */
 			if (fw_verion_compare() == -1) {
-				send_control_cmd(0, 255, 0, 0, 0);
+				send_control_cmd(0, 255, 0, 0, 0, 0);
 				system(FWUPDATE_SCRIPT BYT_FW " force");
 				setup_psh();
 			}
