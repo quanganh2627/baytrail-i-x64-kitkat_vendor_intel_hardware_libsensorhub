@@ -31,7 +31,7 @@
 #define MAX_STRING_SIZE 256
 #define MAX_PROP_VALUE_SIZE 58
 
-#define MAX_FW_VERSION_STR_LEN 64
+#define MAX_FW_VERSION_STR_LEN 256
 #define BYT_FW "/system/etc/firmware/psh_bk.bin"
 #define FWUPDATE_SCRIPT "/system/bin/fwupdate_script.sh "
 
@@ -713,8 +713,10 @@ static int fw_verion_compare()
 	char version_str[MAX_FW_VERSION_STR_LEN];
 	int length = 0;
 
-	if (get_fw_version(version_str))
+	if (get_fw_version(version_str)) {
+		log_message(CRITICAL, "can not get the bin fw version!!!\n");
 		return -2;
+	}
 
 	version_str[MAX_FW_VERSION_STR_LEN-1] = '\0';
 
@@ -2432,8 +2434,12 @@ static void get_status()
 		if ((unsigned int)ret < sizeof(resp))
 			exit(EXIT_FAILURE);
 
-		if (resp.cmd_type != CMD_GET_STATUS)
-			exit(EXIT_FAILURE);
+		if (resp.cmd_type != CMD_GET_STATUS) {
+			ret = read(datafd, buf, resp.data_len);
+			if (ret != resp.data_len)
+				exit(EXIT_FAILURE);
+			continue;
+		}
 
 		if (resp.data_len == 0)
 			break;
