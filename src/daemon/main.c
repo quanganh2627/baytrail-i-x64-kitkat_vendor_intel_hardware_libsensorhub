@@ -554,7 +554,7 @@ static void start_streaming(psh_sensor_t sensor_type,
 //		send_control_cmd(0, cmd_type_to_cmd_id[CMD_STOP_STREAMING],
 //				sensor_type_to_sensor_id[sensor_type], 0, 0);
 
-	if (flag == 1)
+	if ((flag == 1) || (flag == 2))
 		bit_cfg = IA_BIT_CFG_AS_WAKEUP_SRC;
 	else
 		bit_cfg = bit_cfg_arbiter(sensor_type, 0, p_session_state);
