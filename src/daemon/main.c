@@ -463,6 +463,9 @@ static int send_control_cmd(int tran_id, int cmd_id, int sensor_id,
 				tran_id, cmd_id, sensor_id, data_rate_byte[0],
 				data_rate_byte[1], buffer_delay_byte[0],
 				buffer_delay_byte[1], bit_cfg_byte[0], bit_cfg_byte[1]);
+	if (size <= 0)
+		return -1;
+
 	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
 	/* TODO: error handling if (size <= 0 || size > MAX_STRING_SIZE) */
 	ret = write(ctlfd, cmd_string, size);
@@ -747,6 +750,11 @@ static void get_calibration(psh_sensor_t sensor_type,
 			sensor_type_to_sensor_id[sensor_type],	// sensor_id
 			SUBCMD_CALIBRATION_GET);		// sub_cmd
 
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
+	}
+
 	log_message(DEBUG, "Send to control node :%s\n", cmdstring);
 	ret = write(ctlfd, cmdstring, len);
 	if (ret != len)
@@ -760,7 +768,7 @@ static void set_calibration(psh_sensor_t sensor_type,
 				struct cmd_calibration_param *param)
 {
 	char cmdstring[MAX_STRING_SIZE];
-	int ret, len;
+	int ret, len = 0;
 
 	if (sensor_type != SENSOR_CALIBRATION_COMP &&
 		sensor_type != SENSOR_CALIBRATION_GYRO) {
@@ -786,6 +794,11 @@ static void set_calibration(psh_sensor_t sensor_type,
 			cmd_type_to_cmd_id[CMD_SET_CALIBRATION],	// cmd_id
 			sensor_type_to_sensor_id[sensor_type],	// sensor_id
 			param->sub_cmd);		// sub_cmd
+
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
+	}
 
 	if (param->sub_cmd == SUBCMD_CALIBRATION_SET) {
 		// 30 parameters, horrible Orz...
@@ -818,6 +831,11 @@ static void set_calibration(psh_sensor_t sensor_type,
 					p[0], p[1], p[2], p[3]); // offset[i]
 			}
 
+			if (len <= 0) {
+				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+				return;
+			}
+
 			for (i = 0; i < 3; i++)
 				for (j = 0; j < 3; j++) {
 				p = (unsigned char*)&param->cal_param.compass.w[i][j];
@@ -825,9 +843,19 @@ static void set_calibration(psh_sensor_t sensor_type,
 					p[0], p[1], p[2], p[3]); // w[i][j]
 			}
 
+			if (len <= 0) {
+				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+				return;
+			}
+
 			p = (unsigned char*)&param->cal_param.compass.bfield;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d",
 				p[0], p[1], p[2], p[3]); // bfield
+
+			if (len <= 0) {
+				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+				return;
+			}
 		} else if (sensor_type == SENSOR_CALIBRATION_GYRO) {
 			/* For gyro_cal, the parameter is:
 			 * x, y, z
@@ -836,13 +864,28 @@ static void set_calibration(psh_sensor_t sensor_type,
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d ",
 				p[0], p[1]); // x
 
+			if (len <= 0) {
+				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+				return;
+			}
+
 			p = (unsigned char*)&param->cal_param.gyro.y;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d ",
 				p[0], p[1]); // y
 
+			if (len <= 0) {
+				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+				return;
+			}
+
 			p = (unsigned char*)&param->cal_param.gyro.z;
 			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d",
 				p[0], p[1]); // z
+
+			if (len <= 0) {
+				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+				return;
+			}
 
 		}
 	} else if (param->sub_cmd == SUBCMD_CALIBRATION_START) {
@@ -851,6 +894,10 @@ static void set_calibration(psh_sensor_t sensor_type,
 	} else if (param->sub_cmd == SUBCMD_CALIBRATION_STOP) {
 		log_message(DEBUG, "Calibration STOP, sensor_type %d\n", sensor_type);
 
+	}
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
 	}
 
 	log_message(DEBUG, "Send to control node :%s\n", cmdstring);
@@ -1074,18 +1121,43 @@ static void handle_add_event(session_state_t *p_session_state, cmd_event* p_cmd)
 
 	/* struct ia_cmd { u8 tran_id; u8 cmd_id; u8 sensor_id; char param[] }; */
 	len = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d ", trans_id, cmd_type_to_cmd_id[CMD_ADD_EVENT], 0);
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
+	}
 	/* struct cmd_event_param {u8 num; u8 op; struct sub_event evts[] }; */
 	len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d ", num, evt_param->relation);
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
+	}
 	/* struct sub_event {u8 sensor_id; u8 chan_id; opt_id; u32 param1; u32 param2; }; */
 	for (i = 0; i < num; i++) {
 		struct sub_event *sub_event = &(evt_param->evts[i]);
 		unsigned char* p;
 
 		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d ", sensor_type_to_sensor_id[sub_event->sensor_id], sub_event->chan_id, sub_event->opt_id);
+		if (len <= 0) {
+			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+			return;
+		}
 		p = (unsigned char*)&sub_event->param1;
 		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d %d ", p[0], p[1], p[2], p[3]);
+		if (len <= 0) {
+			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+			return;
+		}
 		p = (unsigned char*)&sub_event->param2;
 		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d %d ", p[0], p[1], p[2], p[3]);
+		if (len <= 0) {
+			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+			return;
+		}
+	}
+
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
 	}
 
 	ret = write(ctlfd, cmd_string, len);
@@ -1110,6 +1182,11 @@ static void handle_clear_event(session_state_t *p_session_state)
 
 	p_session_state->event_id = 0;
 	p_session_state->trans_id = 0;
+
+	if (len <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		return;
+	}
 
 	ret = write(ctlfd, cmd_string, len);
 	if (ret != len)
@@ -2645,6 +2722,11 @@ static void get_status()
 
 	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d %d %d",
 			0, CMD_GET_STATUS, 0, 0xff, 0xff, 0xff, 0xff);
+	if (size <= 0) {
+		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+		exit(EXIT_FAILURE);
+	}
+
 	LOGI("cmd to sysfs is: %s\n", cmd_string);
 
 	ret = write(ctlfd, cmd_string, size);
