@@ -20,17 +20,14 @@ typedef struct {
 	int datafd;
 	int ctlfd;
 	session_id_t session_id;
-	psh_sensor_t sensor_type;
+	char name[SNR_NAME_MAX_LEN + 1];
 	unsigned char evt_id;
 	struct cmd_event_param *evt_param;
 } session_context_t;
 
-/* 1 set up data connection
-   2 set up control connection */
-handle_t psh_open_session(psh_sensor_t sensor_type)
+handle_t psh_open_session_with_name(char *name)
 {
-	int datafd, ctlfd, ret, event_type;
-	struct sockaddr_un addr;
+	int datafd, len, ret, event_type, ctlfd;
 	char message[MAX_MESSAGE_LENGTH];
 	hello_with_sensor_type_event hello_with_sensor_type;
 	hello_with_sensor_type_ack_event *p_hello_with_sensor_type_ack;
@@ -39,12 +36,15 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	session_id_t session_id;
 	struct cmd_event_param *evt_param = NULL;
 
-	if (sensor_type >= SENSOR_MAX)
+	if (name == NULL)
+		return NULL;
+
+	len = strlen(name);
+	if (len > SNR_NAME_MAX_LEN)
 		return NULL;
 
 	/* set up data connection */
 	datafd = socket_local_client(UNIX_SOCKET_PATH, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
-
 	if (datafd < 0) {
 		LOGE("socket_local_client() failed\n");
 		return NULL;
@@ -52,9 +52,9 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 
 	/* send  EVENT_HELLO_WITH_SENSOR_TYPE and get session_id in ACK */
 	hello_with_sensor_type.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
-	hello_with_sensor_type.sensor_type = sensor_type;
-	ret = send(datafd, &hello_with_sensor_type,
-			sizeof(hello_with_sensor_type), 0);
+	memcpy(hello_with_sensor_type.name, name, len);
+	hello_with_sensor_type.name[len] = '\0';
+	ret = send(datafd, &hello_with_sensor_type, sizeof(hello_with_sensor_type), 0);
 	if (ret < 0) {
 		close(datafd);
 		LOGE("write EVENT_HELLO_WITH_SENSOR_TYPE "
@@ -65,25 +65,24 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	ret = recv(datafd, message, MAX_MESSAGE_LENGTH, 0);
 	if (ret < 0) {
 		close(datafd);
-		LOGE("read EVENT_HELLO_WITH_SENSOR_TYPE_ACK "
-						"failed \n");
+		LOGE("read EVENT_HELLO_WITH_SENSOR_TYPE_ACK failed \n");
 		return NULL;
 	}
+
 	event_type = *((int *) message);
 	if (event_type != EVENT_HELLO_WITH_SENSOR_TYPE_ACK) {
 		close(datafd);
-		LOGE("not get expected "
-				"EVENT_HELLO_WITH_SENSOR_TYPE_ACK \n");
+		LOGE("not get expected EVENT_HELLO_WITH_SENSOR_TYPE_ACK \n");
 		return NULL;
-	} else {
-		p_hello_with_sensor_type_ack
-				= (hello_with_sensor_type_ack_event *) message;
-		session_id = p_hello_with_sensor_type_ack->session_id;
 	}
+
+	p_hello_with_sensor_type_ack = (hello_with_sensor_type_ack_event *) message;
+	session_id = p_hello_with_sensor_type_ack->session_id;
 
 	/* set up control connection */
 	ctlfd = socket_local_client("sensorhubd", ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
 	if (ctlfd < 0) {
+		close(datafd);
 		LOGE("socket_local_client() failed\n");
 		return NULL;
 	}
@@ -91,13 +90,11 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	/* send EVENT_HELLO_WITH_SESSION_ID and get ACK */
 	hello_with_session_id.event_type = EVENT_HELLO_WITH_SESSION_ID;
 	hello_with_session_id.session_id = session_id;
-	ret = send(ctlfd, &hello_with_session_id,
-			sizeof(hello_with_session_id), 0);
+	ret = send(ctlfd, &hello_with_session_id, sizeof(hello_with_session_id), 0);
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("write EVENT_HELLO_WITH_SESSION_ID "
-						"failed \n");
+		LOGE("write EVENT_HELLO_WITH_SESSION_ID failed \n");
 		return NULL;
 	}
 
@@ -105,37 +102,33 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("read EVENT_HELLO_WITH_SESSION_ID_ACK "
-						"failed \n");
+		LOGE("read EVENT_HELLO_WITH_SESSION_ID_ACK failed \n");
 		return NULL;
 	}
+
 	event_type = *((int *) message);
 	if (event_type != EVENT_HELLO_WITH_SESSION_ID_ACK) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("not get expected "
-			"EVENT_HELLO_WITH_SESSION_ID_ACK \n");
+		LOGE("not get expected EVENT_HELLO_WITH_SESSION_ID_ACK \n");
 		return NULL;
-	} else {
-		p_hello_with_session_id_ack
-				= (hello_with_session_id_ack_event *) message;
-		ret = p_hello_with_session_id_ack->ret;
-		if (ret != SUCCESS) {
-			close(datafd);
-			close(ctlfd);
-			LOGE("failed: "
-			"EVENT_HELLO_WITH_SESSION_ID_ACK returned %d \n", ret);
-			return NULL;
-		}
 	}
 
-	if (sensor_type == SENSOR_EVENT) {
+	p_hello_with_session_id_ack = (hello_with_session_id_ack_event *) message;
+	ret = p_hello_with_session_id_ack->ret;
+	if (ret != SUCCESS) {
+		close(datafd);
+		close(ctlfd);
+		LOGE("failed: EVENT_HELLO_WITH_SESSION_ID_ACK returned %d \n", ret);
+		return NULL;
+	}
+
+	if (strncmp(name, "EVENT", SNR_NAME_MAX_LEN) == 0) {
 		evt_param = malloc(sizeof(struct cmd_event_param));
 		if (evt_param == NULL) {
 			close(datafd);
 			close(ctlfd);
-			LOGE("failed to allocate memory for "
-					"cmd_event_param");
+			LOGE("failed to allocate memory for cmd_event_param");
 			return NULL;
 		}
 
@@ -148,19 +141,29 @@ handle_t psh_open_session(psh_sensor_t sensor_type)
 		close(datafd);
 		close(ctlfd);
 		free(evt_param);
-		LOGE("failed to allocate memory for "
-					"session_context \n");
+		LOGE("failed to allocate memory for session_context \n");
 		return NULL;
 	}
 
 	session_context->datafd = datafd;
 	session_context->ctlfd = ctlfd;
 	session_context->session_id = session_id;
-	session_context->sensor_type = sensor_type;
+	memcpy(session_context->name, name, len);
+	hello_with_sensor_type.name[len] = '\0';
 	session_context->evt_id = 0;
 	session_context->evt_param = evt_param;
 
 	return session_context;
+}
+
+/* 1 set up data connection
+   2 set up control connection */
+handle_t psh_open_session(psh_sensor_t sensor_type)
+{
+	if (sensor_type >= SENSOR_MAX)
+		return NULL;
+
+	return psh_open_session_with_name(sensor_type_to_name_str[sensor_type].name);
 }
 
 void psh_close_session(handle_t handle)
@@ -359,15 +362,15 @@ error_t psh_set_calibration(handle_t handle,
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_CALIBRATION_COMP &&
-		session_context->sensor_type != SENSOR_CALIBRATION_GYRO)
+	if (strncmp(session_context->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
+		strncmp(session_context->name, "GYROC", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	if (param == NULL)
 		return ERROR_WRONG_PARAMETER;
 
 	cmd_event_len = sizeof(cmd_event) + sizeof(*param);
-	param->sensor_type = session_context->sensor_type;
+	param->sensor_type = 0;
 
 	cmd_cal.cmd.event_type = EVENT_CMD;
 	cmd_cal.cmd.cmd = CMD_SET_CALIBRATION;
@@ -418,8 +421,8 @@ error_t psh_get_calibration(handle_t handle,
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_CALIBRATION_COMP &&
-		session_context->sensor_type != SENSOR_CALIBRATION_GYRO)
+	if (strncmp(session_context->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
+		strncmp(session_context->name, "GYROC", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	req.event_type = EVENT_CMD;
@@ -459,7 +462,7 @@ error_t psh_event_set_relation(handle_t handle, relation relation)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_EVENT)
+	if (strncmp(session_context->name, "EVENT", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	session_context->evt_param->relation = relation;
@@ -475,7 +478,7 @@ error_t psh_event_append(handle_t handle, struct sub_event *sub_evt)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_EVENT)
+	if (strncmp(session_context->name, "EVENT", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	/* currently only support 5 sub events */
@@ -513,7 +516,7 @@ error_t psh_add_event(handle_t handle)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_EVENT)
+	if (strncmp(session_context->name, "EVENT", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	/* psh_add_event() has been called before */
@@ -566,7 +569,7 @@ error_t psh_clear_event(handle_t handle)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_EVENT)
+	if (strncmp(session_context->name, "EVENT", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	if (session_context->evt_id == 0)
@@ -603,7 +606,7 @@ short psh_get_event_id(handle_t handle)
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (session_context->sensor_type != SENSOR_EVENT)
+	if (strncmp(session_context->name, "EVENT", SNR_NAME_MAX_LEN) != 0)
 		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	return session_context->evt_id;
@@ -619,7 +622,6 @@ error_t psh_set_property(handle_t handle, property_type prop_type, void *value)
 error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int size, void *value)
 {
 	session_context_t *session_context = (session_context_t *)handle;
-	psh_sensor_t sensor_type;
 	cmd_event *cmd;
 	int ret, event_type;
 	char message[MAX_MESSAGE_LENGTH];
