@@ -291,12 +291,10 @@ static int data_rate_arbiter(sensor_state_t *p_sensor_state,
 	if (flag == 1) {
 		if (p_sensor_state->data_rate == 0)
 			return data_rate;
-		else if (data_rate == 0)
-			return p_sensor_state->data_rate;
 		else if (data_rate > p_sensor_state->data_rate)
 			return data_rate;
 		else
-			return p_sensor_state->data_rate;
+			max_data_rate = data_rate;
 
 	}
 
