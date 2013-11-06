@@ -1182,8 +1182,15 @@ static void handle_add_event(session_state_t *p_session_state, cmd_event* p_cmd)
 	for (i = 0; i < num; i++) {
 		struct sub_event *sub_event = &(evt_param->evts[i]);
 		unsigned char* p;
+		sensor_state_t *p_sensor_state;
 
-		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d ", get_sensor_state_with_name(sensor_type_to_name_str[sub_event->sensor_id].name)->sensor_id, sub_event->chan_id, sub_event->opt_id);
+		p_sensor_state = get_sensor_state_with_name(sensor_type_to_name_str[sub_event->sensor_id].name);
+		if (p_sensor_state == NULL) {
+			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+			return;
+		}
+
+		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d ", p_sensor_state->sensor_id, sub_event->chan_id, sub_event->opt_id);
 		if (len <= 0) {
 			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
 			return;
@@ -2448,6 +2455,8 @@ static void get_status()
 
 		if (current_sensor_index > MAX_SENSOR_INDEX) {
 			sensor_list = realloc(sensor_list, sizeof(sensor_state_t) * (current_sensor_index + 1));
+			if (sensor_list == NULL)
+				exit(EXIT_FAILURE);
 			memset(&sensor_list[current_sensor_index], 0, sizeof(sensor_state_t));
 		}
 
@@ -2464,6 +2473,8 @@ static void get_status()
 
 	if (current_sensor_index > MAX_SENSOR_INDEX) {
 		sensor_list = realloc(sensor_list, sizeof(sensor_state_t) * (current_sensor_index + 1));
+		if (sensor_list == NULL)
+			exit(EXIT_FAILURE);
 		memset(&sensor_list[current_sensor_index], 0, sizeof(sensor_state_t));
 	}
 
@@ -2524,7 +2535,10 @@ int main(int argc, char **argv)
 	}
 
 	sensor_list = malloc((MAX_SENSOR_INDEX + 1) * sizeof(sensor_state_t));
+	if (sensor_list == NULL)
+		exit(EXIT_FAILURE);
 	memset(sensor_list, 0, (MAX_SENSOR_INDEX + 1) * sizeof(sensor_state_t));
+
 	while (1) {
 		reset_sensorhub();
 		if (platform == BAYTRAIL)
