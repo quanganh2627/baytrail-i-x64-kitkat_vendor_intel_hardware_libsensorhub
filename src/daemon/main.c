@@ -31,7 +31,7 @@
 #define MAX_STRING_SIZE 256
 #define MAX_PROP_VALUE_SIZE 58
 
-#define MAX_FW_VERSION_STR_LEN 64
+#define MAX_FW_VERSION_STR_LEN 256
 #define BYT_FW "/system/etc/firmware/psh_bk.bin"
 #define FWUPDATE_SCRIPT "/system/bin/fwupdate_script.sh "
 
@@ -117,7 +117,8 @@ typedef struct session_state_t {
 
 /* data structure to keep state for a particular type of sensor */
 typedef struct {
-	psh_sensor_t sensor_type;
+	int sensor_id;
+	char name[SNR_NAME_MAX_LEN + 1];
 	short freq_max;
 	int data_rate;
 	int buffer_delay;
@@ -125,7 +126,11 @@ typedef struct {
 	session_state_t *list;
 } sensor_state_t;
 
-static sensor_state_t sensor_list[SENSOR_MAX];
+#define MAX_SENSOR_INDEX 25
+
+static sensor_state_t *sensor_list = NULL;
+
+static int current_sensor_index = 0;	// means the current empty slot of sensor_list[]
 
 #define MERRIFIELD 0
 #define BAYTRAIL 1
@@ -171,15 +176,41 @@ static void daemonize()
 	log_message(DEBUG, "sensorhubd is started in daemon mode. \n");
 }
 
+static sensor_state_t* get_sensor_state_with_name(char *name)
+{
+        int i;
+
+        for (i = 0; i < current_sensor_index; i ++) {
+                if (strncmp(sensor_list[i].name, name, SNR_NAME_MAX_LEN) == 0) {
+                        return &sensor_list[i];
+                }
+        }
+
+        return NULL;
+}
+
+static sensor_state_t* get_sensor_state_with_id(unsigned char sensor_id)
+{
+	int i;
+
+	for (i = 0; i < current_sensor_index; i ++) {
+		if (sensor_list[i].sensor_id == sensor_id) {
+			return &sensor_list[i];
+		}
+	}
+
+	return NULL;
+}
+
 static session_state_t* get_session_state_with_session_id(
 					session_id_t session_id)
 {
-	int i = 0;
+	int i;
 
 	log_message(DEBUG, "get_session_state_with_session_id(): "
 				"session_id %d\n", session_id);
 
-	while (i < SENSOR_MAX) {
+	for (i = 0; i < current_sensor_index; i ++) {
 		session_state_t *p_session_state = sensor_list[i].list;
 
 		while (p_session_state != NULL) {
@@ -188,9 +219,7 @@ static session_state_t* get_session_state_with_session_id(
 
 			p_session_state = p_session_state->next;
 		}
-
-		i++;
-	}
+        }
 
 	log_message(WARNING, "get_session_state_with_session_id(): "
 				"NULL is returned\n");
@@ -220,18 +249,18 @@ static session_id_t allocate_session_id()
 }
 
 /* return 0 on success; -1 on fail */
-static int get_sensor_type_session_state_with_fd(int ctlfd,
-					psh_sensor_t *sensor_type,
+static int get_sensor_state_session_state_with_fd(int ctlfd,
+					sensor_state_t **pp_sensor_state,
 					session_state_t **pp_session_state)
 {
-	int i = 0;
+	int i;
 
-	while (i < SENSOR_MAX) {
+	 for (i = 0; i < current_sensor_index; i ++) {
 		session_state_t *p_session_state = sensor_list[i].list;
 
 		while (p_session_state != NULL) {
 			if (p_session_state->ctlfd == ctlfd) {
-				*sensor_type = i;
+				*pp_sensor_state = &sensor_list[i];
 				*pp_session_state = p_session_state;
 
 				return 0;
@@ -240,99 +269,72 @@ static int get_sensor_type_session_state_with_fd(int ctlfd,
 			p_session_state = p_session_state->next;
 		}
 
-		i++;
 	}
 
 	return -1;
 }
 
 /* flag: 1 means start_streaming, 0 means stop_streaming */
-static int data_rate_arbiter(psh_sensor_t sensor_type,
+static int data_rate_arbiter(sensor_state_t *p_sensor_state,
 				int data_rate,
 				session_state_t *p_session_state,
 				char flag)
 {
 	session_state_t *p_session_state_tmp;
-	int data1, data2;
+	int max_data_rate = 0;
 
-	if (flag == 1) {
-		data1 = data_rate;
-
-		if (sensor_list[sensor_type].data_rate == 0)
-			return data_rate;
-		else if (data_rate == 0)
-			return sensor_list[sensor_type].data_rate;
-
-/*		p_session_state_tmp = sensor_list[sensor_type].list;
-
-		while (p_session_state_tmp != NULL) {
-			if ((p_session_state_tmp != p_session_state)
-				&& ((p_session_state_tmp->state == ACTIVE)
-				|| (p_session_state_tmp->state == ALWAYS_ON))) {
-				data2 = p_session_state_tmp->data_rate;
-				data1 = least_common_multiple(data1, data2);
-			}
-
-			p_session_state_tmp = p_session_state_tmp->next;
-		}
-*/
-//		return data1;
-/*
-		r = least_common_multiple(sensor_list[sensor_type].data_rate,
-								data_rate);
-
-		return r;
-*/
-	} else {	/* flag == 0 */
-		data1 = 1;
-		data2 = 0;
-
-/*
-		if (data2 == 0)
-			return 0;
-		else
-			return data1;
-*/
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return 0;
 	}
 
-	p_session_state_tmp = sensor_list[sensor_type].list;
+	if (flag == 1) {
+		if (p_sensor_state->data_rate == 0)
+			return data_rate;
+		else if (data_rate > p_sensor_state->data_rate)
+			return data_rate;
+		else
+			max_data_rate = data_rate;
+
+	}
+
+	/* flag == 0 */
+	p_session_state_tmp = p_sensor_state->list;
 
 	while (p_session_state_tmp != NULL) {
 		if ((p_session_state_tmp != p_session_state)
 			&& ((p_session_state_tmp->state == ACTIVE)
 			|| (p_session_state_tmp->state == ALWAYS_ON))) {
-			data2 = p_session_state_tmp->data_rate;
-			data1 = least_common_multiple(data1, data2);
+			if (max_data_rate < p_session_state_tmp->data_rate) {
+				max_data_rate = p_session_state_tmp->data_rate;
+			}
 		}
 
 		p_session_state_tmp = p_session_state_tmp->next;
 	}
 
-	if (flag == 1)
-		return data1;
-	else {		/* flag == 0 */
-		if (data2 == 0)
-			return 0;
-		else
-			return data1;
-	}
-
+	return max_data_rate;
 }
 
 /* flag: 1 means add a new buffer_delay, 0 means remove a buffer_delay */
-static int buffer_delay_arbiter(psh_sensor_t sensor_type,
+static int buffer_delay_arbiter(sensor_state_t *p_sensor_state,
 				int buffer_delay,
 				session_state_t *p_session_state,
 				char flag)
 {
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return 0;
+	}
+
 	if (flag == 1) {
 		int r;
 		if (buffer_delay == 0)
 			return 0;
 
 		/* a new buffer_delay and not the first one */
-		if (sensor_list[sensor_type].buffer_delay == 0) {
-			session_state_t *tmp = sensor_list[sensor_type].list;
+		if (p_sensor_state->buffer_delay == 0) {
+			session_state_t *tmp = p_sensor_state->list;
 			while (tmp != NULL) {
 				if ((tmp != p_session_state)
 					&& ((tmp->state == ACTIVE)
@@ -341,15 +343,15 @@ static int buffer_delay_arbiter(psh_sensor_t sensor_type,
 				tmp = tmp->next;
 			}
 		}
-		r = max_common_factor(sensor_list[sensor_type].buffer_delay,
-								buffer_delay);
+		r = max_common_factor(p_sensor_state->buffer_delay,
+							buffer_delay);
 		return r;
 	}
 	/* flag == 0 */
 	int data1 = 0, data2;
-	session_state_t *p_session_state_tmp = sensor_list[sensor_type].list;
+	session_state_t *p_session_state_tmp = p_sensor_state->list;
 
-	if ((sensor_list[sensor_type].buffer_delay == 0) && (buffer_delay != 0))
+	if ((p_sensor_state->buffer_delay == 0) && (buffer_delay != 0))
 		return 0;
 
 	while (p_session_state_tmp != NULL) {
@@ -370,7 +372,7 @@ static int buffer_delay_arbiter(psh_sensor_t sensor_type,
 }
 
 /* return as long as anyone is ALWAYS_ON */
-static unsigned short bit_cfg_arbiter(psh_sensor_t sensor_type,
+static unsigned short bit_cfg_arbiter(sensor_state_t *p_sensor_state,
                                 unsigned short bit_cfg,
                                 session_state_t *p_session_state)
 {
@@ -379,7 +381,7 @@ static unsigned short bit_cfg_arbiter(psh_sensor_t sensor_type,
 	if (bit_cfg != 0)
 		return bit_cfg;
 
-	p_session_state_tmp = sensor_list[sensor_type].list;
+	p_session_state_tmp = p_sensor_state->list;
 	while (p_session_state_tmp != NULL) {
 		if (p_session_state_tmp != p_session_state) {
 			if (p_session_state_tmp->state == ALWAYS_ON) {
@@ -393,8 +395,6 @@ static unsigned short bit_cfg_arbiter(psh_sensor_t sensor_type,
 	return 0;
 }
 
-
-static int sensor_type_to_sensor_id[SENSOR_MAX] = { 0 };
 enum resp_type {
 	RESP_CMD_ACK,
 	RESP_GET_TIME,
@@ -415,6 +415,7 @@ static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12};
 
 static int send_control_cmd(int tran_id, int cmd_id, int sensor_id, unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg);
 
+#if 0
 static void error_handling(int error_no)
 {
 
@@ -447,6 +448,7 @@ restart:
 
 	/* 4 re-issue calibration */
 }
+#endif
 
 /* 0 on success; -1 on fail */
 static int send_control_cmd(int tran_id, int cmd_id, int sensor_id,
@@ -487,12 +489,17 @@ static int send_control_cmd(int tran_id, int cmd_id, int sensor_id,
  * User should handle start/end flags, by themselves in their *value buffer.
  * User should handle segments concatenation by themselves in virtual sensor.
  */
-static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, int len, unsigned char *value)
+static int send_set_property(sensor_state_t *p_sensor_state, property_type prop_type, int len, unsigned char *value)
 {
 	char cmd_string[MAX_STRING_SIZE];
 	int size, ret, i, j, set_len, left_len;
 	unsigned char *p = value;
 	unsigned char prop_type_byte = (unsigned char )prop_type;
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return -1;
+	}
 
 	log_message(CRITICAL, "prop type: %d len: %d value: %d %d %d %d\n", prop_type_byte, len,
 			value[0], value[1], value[2], value[3]);
@@ -501,7 +508,7 @@ static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, 
 	for (j = 0; j < (len + MAX_PROP_VALUE_SIZE - 1) / MAX_PROP_VALUE_SIZE; j++) {
 		set_len = left_len > MAX_PROP_VALUE_SIZE ? MAX_PROP_VALUE_SIZE : left_len;
 		size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d", 0,
-				cmd_type_to_cmd_id[CMD_SET_PROPERTY], sensor_type_to_sensor_id[sensor_type], set_len + 1,
+				cmd_type_to_cmd_id[CMD_SET_PROPERTY], p_sensor_state->sensor_id, set_len + 1,
 				prop_type_byte);
 		for (i = 0; i < set_len; i++) {
 			size += snprintf(cmd_string + size, MAX_STRING_SIZE - size, " %d", p[i]);
@@ -522,29 +529,37 @@ static int send_set_property(psh_sensor_t sensor_type, property_type prop_type, 
 }
 
 /* flag: 2 means no_stop_no_report; 1 means no_stop when screen off; 0 means stop when screen off */
-static void start_streaming(psh_sensor_t sensor_type,
+static void start_streaming(sensor_state_t *p_sensor_state,
 				session_state_t *p_session_state,
 				int data_rate, int buffer_delay, int flag)
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
 	unsigned short bit_cfg = 0;
 
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+//	log_message(CRITICAL, "requested data rate is %d \n", data_rate);
 
 	if (data_rate != -1)
-		data_rate_arbitered = data_rate_arbiter(sensor_type, data_rate,
+		data_rate_arbitered = data_rate_arbiter(p_sensor_state, data_rate,
 						p_session_state, 1);
 	else
 		data_rate_arbitered = -1;
 
-	buffer_delay_arbitered = buffer_delay_arbiter(sensor_type, buffer_delay,
+	buffer_delay_arbitered = buffer_delay_arbiter(p_sensor_state, buffer_delay,
 						p_session_state, 1);
+
+	log_message(CRITICAL, "requested data rate is %d, arbitered is %d \n", data_rate, data_rate_arbitered);
 
 	log_message(DEBUG, "CMD_START_STREAMING, data_rate_arbitered "
 				"is %d, buffer_delay_arbitered is %d \n",
 				data_rate_arbitered, buffer_delay_arbitered);
 
-	sensor_list[sensor_type].data_rate = data_rate_arbitered;
-	sensor_list[sensor_type].buffer_delay = buffer_delay_arbitered;
+	p_sensor_state->data_rate = data_rate_arbitered;
+	p_sensor_state->buffer_delay = buffer_delay_arbitered;
 
 	/* send CMD_START_STREAMING to psh_fw no matter data rate changes or not,
 	   this is requested by Dong for terminal context sensor on 2012/07/17 */
@@ -560,10 +575,10 @@ static void start_streaming(psh_sensor_t sensor_type,
 	if ((flag == 1) || (flag == 2))
 		bit_cfg = IA_BIT_CFG_AS_WAKEUP_SRC;
 	else
-		bit_cfg = bit_cfg_arbiter(sensor_type, 0, p_session_state);
+		bit_cfg = bit_cfg_arbiter(p_sensor_state, 0, p_session_state);
 
 	send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
-			sensor_type_to_sensor_id[sensor_type],
+			p_sensor_state->sensor_id,
 			data_rate_arbitered, buffer_delay_arbitered, bit_cfg);
 //	}
 
@@ -582,11 +597,16 @@ static void start_streaming(psh_sensor_t sensor_type,
 	}
 }
 
-static void stop_streaming(psh_sensor_t sensor_type,
+static void stop_streaming(sensor_state_t *p_sensor_state,
 				session_state_t *p_session_state)
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
 	unsigned short bit_cfg_arbitered;
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
 
 	if (p_session_state->state == INACTIVE)
 		return;
@@ -596,33 +616,33 @@ static void stop_streaming(psh_sensor_t sensor_type,
 		return;
 	}
 
-	data_rate_arbitered = data_rate_arbiter(sensor_type,
+	data_rate_arbitered = data_rate_arbiter(p_sensor_state,
 						p_session_state->data_rate,
 						p_session_state, 0);
-	buffer_delay_arbitered = buffer_delay_arbiter(sensor_type,
+	buffer_delay_arbitered = buffer_delay_arbiter(p_sensor_state,
 						p_session_state->buffer_delay,
 						p_session_state, 0);
 
 	p_session_state->state = INACTIVE;
 
-	if ((sensor_list[sensor_type].data_rate == data_rate_arbitered)
-	&& (sensor_list[sensor_type].buffer_delay == buffer_delay_arbitered))
+	if ((p_sensor_state->data_rate == data_rate_arbitered)
+	&& (p_sensor_state->buffer_delay == buffer_delay_arbitered))
 		return;
 
-	sensor_list[sensor_type].data_rate = data_rate_arbitered;
-	sensor_list[sensor_type].buffer_delay = buffer_delay_arbitered;
+	p_sensor_state->data_rate = data_rate_arbitered;
+	p_sensor_state->buffer_delay = buffer_delay_arbitered;
 
 	if (data_rate_arbitered != 0) {
 		/* send CMD_START_STREAMING to sysfs control node to
 		   re-config the data rate */
-		bit_cfg_arbitered = bit_cfg_arbiter(sensor_type, 0, p_session_state);
+		bit_cfg_arbitered = bit_cfg_arbiter(p_sensor_state, 0, p_session_state);
 		send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
-				sensor_type_to_sensor_id[sensor_type],
+				p_sensor_state->sensor_id,
 				data_rate_arbitered, buffer_delay_arbitered, bit_cfg_arbitered);
 	} else {
 		/* send CMD_STOP_STREAMING cmd to sysfs control node */
 		send_control_cmd(0, cmd_type_to_cmd_id[CMD_STOP_STREAMING],
-			sensor_type_to_sensor_id[sensor_type], 0, 0, 0);
+			p_sensor_state->sensor_id, 0, 0, 0);
 	}
 
 //	sensor_list[sensor_type].count = 0;
@@ -691,8 +711,10 @@ static int fw_verion_compare()
 	char version_str[MAX_FW_VERSION_STR_LEN];
 	int length = 0;
 
-	if (get_fw_version(version_str))
+	if (get_fw_version(version_str)) {
+		log_message(CRITICAL, "can not get the bin fw version!!!\n");
 		return -2;
+	}
 
 	version_str[MAX_FW_VERSION_STR_LEN-1] = '\0';
 
@@ -718,36 +740,48 @@ static int fw_verion_compare()
 	return 0;
 }
 
-static void get_single(psh_sensor_t sensor_type,
+static void get_single(sensor_state_t *p_sensor_state,
 				session_state_t *p_session_state)
 {
-	log_message(DEBUG, "get_single is called with sensor_type %d \n",
-							sensor_type);
+	log_message(DEBUG, "get_single is called with sensor_type %s \n",
+							p_sensor_state->name);
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+	log_message(DEBUG, "get_single is called with %s \n", p_sensor_state->name);
 
 	/* send CMD_GET_SINGLE to sysfs control node */
 	p_session_state->get_single = 1;
 	send_control_cmd(0, cmd_type_to_cmd_id[CMD_GET_SINGLE],
-			sensor_type_to_sensor_id[sensor_type], 0, 0, 0);
+			p_sensor_state->sensor_id, 0, 0, 0);
 }
 
-static void get_calibration(psh_sensor_t sensor_type,
+static void get_calibration(sensor_state_t *p_sensor_state,
 				session_state_t *p_session_state)
 {
 	char cmdstring[MAX_STRING_SIZE];
 	int ret, len;
 
-	if (sensor_type != SENSOR_CALIBRATION_COMP &&
-		sensor_type != SENSOR_CALIBRATION_GYRO) {
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
+		strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) != 0) {
 		log_message(DEBUG, "Get calibration with confused parameter,"
-					"sensor type is not for calibration, is %d\n",
-					sensor_type);
+					"sensor type is not for calibration, is %s\n",
+					p_sensor_state->name);
 		return;
 	}
 
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d",
 			0,			// tran_id
 			cmd_type_to_cmd_id[CMD_GET_CALIBRATION],	// cmd_id
-			sensor_type_to_sensor_id[sensor_type],	// sensor_id
+			p_sensor_state->sensor_id,	// sensor_id
 			SUBCMD_CALIBRATION_GET);		// sub_cmd
 
 	if (len <= 0) {
@@ -764,24 +798,14 @@ static void get_calibration(psh_sensor_t sensor_type,
 		p_session_state->get_calibration = 1;
 }
 
-static void set_calibration(psh_sensor_t sensor_type,
+static void set_calibration(sensor_state_t *p_sensor_state,
 				struct cmd_calibration_param *param)
 {
 	char cmdstring[MAX_STRING_SIZE];
 	int ret, len = 0;
 
-	if (sensor_type != SENSOR_CALIBRATION_COMP &&
-		sensor_type != SENSOR_CALIBRATION_GYRO) {
-		log_message(DEBUG, "Set calibration with confused parameter,"
-					"sensor type is not for calibration, is %d\n",
-					sensor_type);
-		return;
-	}
-
-	if (param->sensor_type != sensor_type) {
-		log_message(DEBUG, "Set calibration with confused parameter,"
-					"sensor_type is %d, but parameter is %d\n",
-					sensor_type, param->sensor_type);
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
 		return;
 	}
 
@@ -792,7 +816,7 @@ static void set_calibration(psh_sensor_t sensor_type,
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d ",
 			0,			// tran_id
 			cmd_type_to_cmd_id[CMD_SET_CALIBRATION],	// cmd_id
-			sensor_type_to_sensor_id[sensor_type],	// sensor_id
+			p_sensor_state->sensor_id,	// sensor_id
 			param->sub_cmd);		// sub_cmd
 
 	if (len <= 0) {
@@ -803,7 +827,7 @@ static void set_calibration(psh_sensor_t sensor_type,
 	if (param->sub_cmd == SUBCMD_CALIBRATION_SET) {
 		// 30 parameters, horrible Orz...
 		unsigned char* p;
-		log_message(DEBUG, "Set calibration, sensor_type %d\n", sensor_type);
+		log_message(DEBUG, "Set calibration, sensor_type %s\n", p_sensor_state->name);
 
 		if (param->sub_cmd != SUBCMD_CALIBRATION_SET) {
 			log_message(DEBUG, "Set calibration with confused parameter,"
@@ -819,7 +843,7 @@ static void set_calibration(psh_sensor_t sensor_type,
 			return;
 		}
 
-		if (sensor_type == SENSOR_CALIBRATION_COMP) {
+		if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) == 0) {
 			/* For compass_cal, the parameter is:
 			 * offset[3], w[3][3], bfield
 			 */
@@ -856,7 +880,7 @@ static void set_calibration(psh_sensor_t sensor_type,
 				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
 				return;
 			}
-		} else if (sensor_type == SENSOR_CALIBRATION_GYRO) {
+		} else if (strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) == 0) {
 			/* For gyro_cal, the parameter is:
 			 * x, y, z
 			 */
@@ -889,10 +913,10 @@ static void set_calibration(psh_sensor_t sensor_type,
 
 		}
 	} else if (param->sub_cmd == SUBCMD_CALIBRATION_START) {
-		log_message(DEBUG, "Calibration START, sensor_type %d\n", sensor_type);
+		log_message(DEBUG, "Calibration START, sensor_type %s\n", p_sensor_state->name);
 
 	} else if (param->sub_cmd == SUBCMD_CALIBRATION_STOP) {
-		log_message(DEBUG, "Calibration STOP, sensor_type %d\n", sensor_type);
+		log_message(DEBUG, "Calibration STOP, sensor_type %s\n", p_sensor_state->name);
 
 	}
 	if (len <= 0) {
@@ -906,17 +930,22 @@ static void set_calibration(psh_sensor_t sensor_type,
 		log_message(DEBUG, "[%s]Error in sending cmd:%d\n", __func__, ret);
 }
 
-static void load_calibration_from_file(psh_sensor_t sensor_type,
+static void load_calibration_from_file(sensor_state_t *p_sensor_state,
 					struct cmd_calibration_param *param)
 {
 	FILE *conf;
 	const char *file_name;
 
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
 	memset(param, 0, sizeof(struct cmd_calibration_param));
 
-	if (sensor_type == SENSOR_CALIBRATION_COMP)
+	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) == 0)
 		file_name = COMPASS_CALIBRATION_FILE;
-	else if (sensor_type == SENSOR_CALIBRATION_GYRO)
+	else if (strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) == 0)
 		file_name = GYRO_CALIBRATION_FILE;
 	else
 		return;
@@ -941,15 +970,20 @@ static void load_calibration_from_file(psh_sensor_t sensor_type,
 	fclose(conf);
 }
 
-static void store_calibration_to_file(psh_sensor_t sensor_type,
+static void store_calibration_to_file(sensor_state_t *p_sensor_state,
 					struct cmd_calibration_param *param)
 {
 	FILE *conf;
 	const char *file_name;
 
-	if (sensor_type == SENSOR_CALIBRATION_COMP)
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) == 0)
 		file_name = COMPASS_CALIBRATION_FILE;
-	else if (sensor_type == SENSOR_CALIBRATION_GYRO)
+	else if (strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) == 0)
 		file_name = GYRO_CALIBRATION_FILE;
 	else
 		return;
@@ -966,70 +1000,77 @@ static void store_calibration_to_file(psh_sensor_t sensor_type,
 	fclose(conf);
 }
 
-static inline int check_calibration_status(psh_sensor_t sensor_type, int status)
+static inline int check_calibration_status(sensor_state_t *p_sensor_state, int status)
 {
-	if (sensor_list[sensor_type].calibration_status & status)
+	if (p_sensor_state == NULL)
+		return 0;
+
+	if (p_sensor_state->calibration_status & status)
 		return 1;
 	else
 		return 0;
 }
 
-static int set_calibration_status(psh_sensor_t sensor_type, int status,
+static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
 					struct cmd_calibration_param *param)
 {
-	if (sensor_type != SENSOR_CALIBRATION_COMP &&
-		sensor_type != SENSOR_CALIBRATION_GYRO)
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
+		return -1;
+	}
+
+	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
+		strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) != 0)
 		return -1;
 
 	if (status & CALIBRATION_NEED_STORE)
-		sensor_list[sensor_type].calibration_status |=
-							CALIBRATION_NEED_STORE;
+		p_sensor_state->calibration_status |=
+						CALIBRATION_NEED_STORE;
 
 	if (status & CALIBRATION_INIT) {
 		struct cmd_calibration_param param_temp;
 
 		/* If current status is calibrated, calibration init isn't needed*/
-		if (sensor_list[sensor_type].calibration_status &
+		if (p_sensor_state->calibration_status &
 				CALIBRATION_DONE)
-			return sensor_list[sensor_type].calibration_status;
+			return p_sensor_state->calibration_status;
 
-		load_calibration_from_file(sensor_type, &param_temp);
+		load_calibration_from_file(p_sensor_state, &param_temp);
 
-		if (param_temp.sensor_type == sensor_type &&
-			param_temp.calibrated == SUBCMD_CALIBRATION_TRUE) {
+		if (param_temp.calibrated == SUBCMD_CALIBRATION_TRUE) {
 			/* Set calibration parameter to psh_fw */
 			param_temp.sub_cmd = SUBCMD_CALIBRATION_SET;
-			set_calibration(sensor_type, &param_temp);
+			set_calibration(p_sensor_state, &param_temp);
 
 			/* Clear 0~30bit, 31bit is for CALIBRATION_NEED_STORE,
 			 * 31bit can coexist with other bits */
-			sensor_list[sensor_type].calibration_status &=
+			p_sensor_state->calibration_status &=
 							CALIBRATION_NEED_STORE;
 			/* Then set the status bit */
-			sensor_list[sensor_type].calibration_status |=
+			p_sensor_state->calibration_status |=
 							CALIBRATION_DONE;
 		} else {
 			memset(&param_temp, 0, sizeof(struct cmd_calibration_param));
 			/* clear the parameter file */
-			store_calibration_to_file(sensor_type, &param_temp);
+			store_calibration_to_file(p_sensor_state, &param_temp);
 			/* If no calibration parameter, just set status */
-			sensor_list[sensor_type].calibration_status &=
+			p_sensor_state->calibration_status &=
 							CALIBRATION_NEED_STORE;
-			sensor_list[sensor_type].calibration_status |=
+			p_sensor_state->calibration_status |=
 							CALIBRATION_IN_PROGRESS;
 		}
 	} else if (status & CALIBRATION_RESET) {
 		/* Start the calibration */
 		if (param && param->sub_cmd == SUBCMD_CALIBRATION_START) {
-			set_calibration(sensor_type, param);
+			set_calibration(p_sensor_state, param);
 
 			memset(param, 0, sizeof(struct cmd_calibration_param));
 			/* clear the parameter file */
-			store_calibration_to_file(sensor_type, param);
+			store_calibration_to_file(p_sensor_state, param);
 
-			sensor_list[sensor_type].calibration_status &=
+			p_sensor_state->calibration_status &=
 							CALIBRATION_NEED_STORE;
-			sensor_list[sensor_type].calibration_status |=
+			p_sensor_state->calibration_status |=
 							CALIBRATION_IN_PROGRESS;
 		}
 	} else if (status & CALIBRATION_IN_PROGRESS) {
@@ -1038,39 +1079,45 @@ static int set_calibration_status(psh_sensor_t sensor_type, int status,
 		 * In this status, can only send SUBCMD_CALIBRATION_STOP
 		 */
 		if (param && param->sub_cmd == SUBCMD_CALIBRATION_STOP)
-			set_calibration(sensor_type, param);
+			set_calibration(p_sensor_state, param);
 	} else if (status & CALIBRATION_DONE) {
-		if (param && param->sensor_type == sensor_type &&
-			param->calibrated == SUBCMD_CALIBRATION_TRUE &&
-			param->sub_cmd == SUBCMD_CALIBRATION_SET) {
+		if (param && param->calibrated == SUBCMD_CALIBRATION_TRUE && param->sub_cmd == SUBCMD_CALIBRATION_SET) {
 			/* Set calibration parameter to psh_fw */
-			set_calibration(sensor_type, param);
+			set_calibration(p_sensor_state, param);
 
-			sensor_list[sensor_type].calibration_status &=
+			p_sensor_state->calibration_status &=
 							CALIBRATION_NEED_STORE;
-			sensor_list[sensor_type].calibration_status |=
+			p_sensor_state->calibration_status |=
 							CALIBRATION_DONE;
 
 			/* There is a chance to check if needs store param to file
 			 * If so, then do it, and clear the CALIBRATION_NEED_STORE bit
 			 */
-			if (sensor_list[sensor_type].calibration_status &
+			if (p_sensor_state->calibration_status &
 				CALIBRATION_NEED_STORE) {
-				store_calibration_to_file(sensor_type, param);
+				store_calibration_to_file(p_sensor_state, param);
 
-				sensor_list[sensor_type].calibration_status &=
+				p_sensor_state->calibration_status &=
 							(~CALIBRATION_NEED_STORE);
 			}
 		}
 	}
 
-	return sensor_list[sensor_type].calibration_status;
+	return p_sensor_state->calibration_status;
 }
 
 static session_state_t* get_session_state_with_trans_id(
 					unsigned char trans_id)
 {
-	session_state_t *p_session_state = sensor_list[SENSOR_EVENT].list;
+	sensor_state_t *p_sensor_state = get_sensor_state_with_name("EVENT");
+	session_state_t *p_session_state;
+
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
+		return NULL;
+	}
+
+	p_session_state = p_sensor_state->list;
 
 	while (p_session_state != NULL) {
 		if (p_session_state->trans_id == trans_id)
@@ -1136,7 +1183,7 @@ static void handle_add_event(session_state_t *p_session_state, cmd_event* p_cmd)
 		struct sub_event *sub_event = &(evt_param->evts[i]);
 		unsigned char* p;
 
-		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d ", sensor_type_to_sensor_id[sub_event->sensor_id], sub_event->chan_id, sub_event->opt_id);
+		len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d %d %d ", get_sensor_state_with_name(sensor_type_to_name_str[sub_event->sensor_id].name)->sensor_id, sub_event->chan_id, sub_event->opt_id);
 		if (len <= 0) {
 			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
 			return;
@@ -1195,26 +1242,21 @@ static void handle_clear_event(session_state_t *p_session_state)
 	return;
 }
 
-static int recalculate_data_rate(psh_sensor_t sensor_type, int data_rate)
+static int recalculate_data_rate(sensor_state_t *p_sensor_state, int data_rate)
 {
-	short freq_max = sensor_list[sensor_type].freq_max;
-	short i;
+	short freq_max;
+
+	if (p_sensor_state == NULL) {
+		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
+		return -1;
+	}
+
+	freq_max = p_sensor_state->freq_max;
 
 	if (freq_max == -1)
 		return -1;
 
-	if (freq_max == 0)
-		return 0;
-
-	if ((freq_max % data_rate) == 0)
-		return data_rate;
-
-	for (i = data_rate; i > 0; i--) {
-		if ((freq_max % i) == 0)
-			break;
-	}
-
-	return i;
+	return data_rate;
 }
 
 /* 1 arbiter
@@ -1225,10 +1267,10 @@ static int recalculate_data_rate(psh_sensor_t sensor_type, int data_rate)
 static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 						int parameter2,	int *reply_now)
 {
-	psh_sensor_t sensor_type;
 	session_state_t *p_session_state;
+	sensor_state_t *p_sensor_state;
 	int data_rate_calculated, size;
-	int ret = get_sensor_type_session_state_with_fd(fd, &sensor_type,
+	int ret = get_sensor_state_session_state_with_fd(fd, &p_sensor_state,
 							&p_session_state);
 	cmd_t cmd = p_cmd->cmd;
 
@@ -1237,24 +1279,19 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 	if (ret != 0)
 		return ERR_SESSION_NOT_EXIST;
 
-        if ((sensor_type >= SENSOR_MAX) || (sensor_type <= SENSOR_INVALID)) {
-                LOGE("handle_cmd(): sensor type %d not supported \n", sensor_type);
-                return ERR_SENSOR_NOT_SUPPORT;
-        }
-
 	log_message(DEBUG, "[%s] Ready to handle command %d\n", __func__, cmd);
 
 	if (cmd == CMD_START_STREAMING) {
-		data_rate_calculated = recalculate_data_rate(sensor_type, parameter);
-		start_streaming(sensor_type, p_session_state,
+		data_rate_calculated = recalculate_data_rate(p_sensor_state, parameter);
+		start_streaming(p_sensor_state, p_session_state,
 					data_rate_calculated, parameter1, parameter2);
 	} else if (cmd == CMD_STOP_STREAMING) {
-		stop_streaming(sensor_type, p_session_state);
+		stop_streaming(p_sensor_state, p_session_state);
 	} else if (cmd == CMD_GET_SINGLE) {
-		get_single(sensor_type, p_session_state);
+		get_single(p_sensor_state, p_session_state);
 		*reply_now = 0;
 	} else if (cmd == CMD_GET_CALIBRATION) {
-		get_calibration(sensor_type, p_session_state);
+		get_calibration(p_sensor_state, p_session_state);
 		*reply_now = 0;
 	} else if (cmd == CMD_SET_CALIBRATION) {
 		char *p = (char*)p_cmd;
@@ -1268,15 +1305,15 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		cal_param = (struct cmd_calibration_param*)(p + sizeof(cmd_event));
 
 		if (cal_param->sub_cmd == SUBCMD_CALIBRATION_SET)
-			set_calibration_status(sensor_type,
+			set_calibration_status(p_sensor_state,
 						CALIBRATION_DONE | CALIBRATION_NEED_STORE,
 						cal_param);
 		else if (cal_param->sub_cmd == SUBCMD_CALIBRATION_START)
-			set_calibration_status(sensor_type,
+			set_calibration_status(p_sensor_state,
 						CALIBRATION_RESET | CALIBRATION_NEED_STORE,
 						cal_param);
 		else if (cal_param->sub_cmd == SUBCMD_CALIBRATION_STOP)
-			set_calibration_status(sensor_type,
+			set_calibration_status(p_sensor_state,
 						CALIBRATION_IN_PROGRESS,
 						cal_param);
 	} else if (cmd == CMD_ADD_EVENT) {
@@ -1288,7 +1325,7 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		else
 			return ERR_SESSION_NOT_EXIST;
 	} else if (cmd == CMD_SET_PROPERTY) {
-		send_set_property(sensor_type, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);
+		send_set_property(p_sensor_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);
 	}
 
 	return SUCCESS;
@@ -1306,14 +1343,13 @@ static void handle_message(int fd, char *message)
 		session_state_t *p_session_state, **next;
 		hello_with_sensor_type_event *p_hello_with_sensor_type =
 					(hello_with_sensor_type_event *)message;
-		psh_sensor_t sensor_type =
-					p_hello_with_sensor_type->sensor_type;
+		sensor_state_t *p_sensor_state = NULL;
 
-		if ((sensor_type >= SENSOR_MAX) || (sensor_type <= SENSOR_INVALID) || (sensor_type_to_sensor_id[sensor_type] == 0)) {
+		if ((p_sensor_state = get_sensor_state_with_name(p_hello_with_sensor_type->name)) == NULL) {
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
 			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
-			LOGE("handle_message(): sensor type %d not supported \n", sensor_type);
+			LOGE("handle_message(): sensor type %s not supported \n", p_hello_with_sensor_type->name);
 			return;
 		}
 		session_id_t session_id = allocate_session_id();
@@ -1335,20 +1371,22 @@ static void handle_message(int fd, char *message)
 		p_session_state->datafd = fd;
 		p_session_state->session_id = session_id;
 
-		if ((sensor_type == SENSOR_COMP || sensor_type == SENSOR_GYRO) &&
-			sensor_list[sensor_type].list == NULL) {
+		if ((strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0) &&
+			p_sensor_state->list == NULL) {
+			sensor_state_t *p_cal_sensor_state;
 			/* In this case, this sensor is opened firstly,
 			 * So calibration init is needed
 			 */
-			psh_sensor_t cal_sensor = (sensor_type == SENSOR_COMP) ?
-							SENSOR_CALIBRATION_COMP :
-							SENSOR_CALIBRATION_GYRO;
+			if (strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0)
+				p_cal_sensor_state = get_sensor_state_with_name("COMPC");
+			else
+				p_cal_sensor_state = get_sensor_state_with_name("GYROC");
 
-			set_calibration_status(cal_sensor, CALIBRATION_INIT, NULL);
+			set_calibration_status(p_cal_sensor_state, CALIBRATION_INIT, NULL);
 		}
 
-		p_session_state->next = sensor_list[sensor_type].list;
-		sensor_list[sensor_type].list = p_session_state;
+		p_session_state->next = p_sensor_state->list;
+		p_sensor_state->list = p_session_state;
 
 	} else if (event_type == EVENT_HELLO_WITH_SESSION_ID) {
 		hello_with_session_id_ack_event hello_with_session_id_ack;
@@ -1582,11 +1620,10 @@ static void write_data(session_state_t *p_session_state, void *data, int size)
 		p_session_state->datafd_invalid = 1;
 }
 
-static void send_data_to_clients(psh_sensor_t sensor_type, void *data,
-						int size, int unit_size)
+static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
+						int size)
 {
-	session_state_t *p_session_state = sensor_list[sensor_type].list;
-	int count = size / unit_size;
+	session_state_t *p_session_state = p_sensor_state->list;
 	char buf[MAX_MESSAGE_LENGTH];
 
 	/* Use slide window mechanism to send data to target client,
@@ -1599,130 +1636,45 @@ static void send_data_to_clients(psh_sensor_t sensor_type, void *data,
 		if ((p_session_state->state != ACTIVE) && (p_session_state->state != ALWAYS_ON))
 			continue;
 
-		/* no arbiter needed for SENSOR_ALS,
-			SENSOR_ACTIVITY, SENSOR_GS, GESTURE_FLICK */
-		if (sensor_list[sensor_type].freq_max == -1) {
-//			write(p_session_state->datafd, data, size);
-			send(p_session_state->datafd, data, size, MSG_NOSIGNAL);
-			continue;
-		}
-		/* special case, so fast processing without data copy */
-		if (sensor_list[sensor_type].data_rate
-				== p_session_state->data_rate) {
-			int ret;
-			ret = send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
-//			write_data(p_session_state, data, size);
-			continue;
-		}
+		send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
 
-		step = sensor_list[sensor_type].data_rate
-				/ p_session_state->data_rate;
-		if (p_session_state->tail != 0)
-			index = step - (p_session_state->tail % step);
-
-		while (index < count) {
-			memcpy(buf + i * unit_size,
-				(char *)data + index * unit_size, unit_size);
-			i++;
-			index += step;
-		}
-//		log_message(DEBUG, "step is %d, i is %d, count is %d \n",
-//							step, i, count);
-		p_session_state->tail = (p_session_state->tail + count) % step;
-
-//		write(p_session_state->datafd, buf, unit_size * i);
-		send(p_session_state->datafd, buf, unit_size * i, MSG_NOSIGNAL);
 	}
 }
 
 static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 {
-	int sensor_type = -1;
+	int i;
+	sensor_state_t *p_sensor_state = NULL;
 	session_state_t *p_session_state;
 	cmd_ack_event *p_cmd_ack;
 
-	if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ACCELEROMETER]) {
-		sensor_type = SENSOR_ACCELEROMETER;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GYRO]) {
-		sensor_type = SENSOR_GYRO;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_COMP]) {
-		sensor_type = SENSOR_COMP;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_TC]) {
-		sensor_type = SENSOR_TC;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_BARO]) {
-		sensor_type = SENSOR_BARO;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ALS]) {
-		sensor_type = SENSOR_ALS;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ACTIVITY]) {
-		sensor_type = SENSOR_ACTIVITY;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GS]) {
-		sensor_type = SENSOR_GS;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_PROXIMITY]) {
-		sensor_type = SENSOR_PROXIMITY;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK]) {
-		sensor_type = SENSOR_GESTURE_FLICK;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_SHAKING]) {
-		sensor_type = SENSOR_SHAKING;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_STAP]) {
-		sensor_type = SENSOR_STAP;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_9DOF]) {
-		sensor_type = SENSOR_9DOF;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR]) {
-		sensor_type = SENSOR_ROTATION_VECTOR;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GRAVITY]) {
-		sensor_type = SENSOR_GRAVITY;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL]) {
-		sensor_type = SENSOR_LINEAR_ACCEL;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ORIENTATION]) {
-		sensor_type = SENSOR_ORIENTATION;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_MAG_HEADING]) {
-		sensor_type = SENSOR_MAG_HEADING;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_LPE]) {
-		sensor_type = SENSOR_LPE;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_PEDOMETER]) {
-		sensor_type = SENSOR_PEDOMETER;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
-		sensor_type = SENSOR_MOVE_DETECT;
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_BIST]) {
-		sensor_type = SENSOR_BIST;
-	} else {
+	for (i = 0; i < current_sensor_index; i ++) {
+		if (sensor_list[i].sensor_id == p_cmd_resp->sensor_id) {
+			p_sensor_state = &sensor_list[i];
+			break;
+		}
+	}
+
+	if (p_sensor_state == NULL) {
 		LOGE("dispatch_get_single(): unkown sensor id from psh fw %d \n", p_cmd_resp->sensor_id);
 		return;
 	}
 
-	p_session_state = sensor_list[sensor_type].list;
+	p_session_state = p_sensor_state->list;
 	for (; p_session_state != NULL;
 		p_session_state = p_session_state->next) {
 		if (p_session_state->get_single == 0)
 			continue;
 		// TODO Compass data breaks the uniform handle of get_single ...
 		// FIXME hard copy , too bad ...
-		if (sensor_type == SENSOR_COMP || sensor_type == SENSOR_GYRO) {
-			psh_sensor_t cal_type = (sensor_type == SENSOR_COMP) ?
-							SENSOR_CALIBRATION_COMP :
-							SENSOR_CALIBRATION_GYRO;
+		if (strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
+			sensor_state_t *p_cal_sensor_state;
+
+			if (strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
+				p_cal_sensor_state = get_sensor_state_with_name("COMPC");
+			} else {
+				p_cal_sensor_state = get_sensor_state_with_name("GYROC");
+			}
 
 			p_cmd_ack = malloc(sizeof(cmd_ack_event) + p_cmd_resp->data_len + 2);
 			if (p_cmd_ack == NULL) {
@@ -1734,13 +1686,13 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack->buf_len = p_cmd_resp->data_len + 2;
 			{
 				short *p = (short*)(p_cmd_ack->buf + p_cmd_resp->data_len);
-				*p = check_calibration_status(cal_type, CALIBRATION_DONE);
+				*p = check_calibration_status(p_cal_sensor_state, CALIBRATION_DONE);
 			}
 			memcpy(p_cmd_ack->buf, p_cmd_resp->buf, p_cmd_resp->data_len + 2);
 
 			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
 						+ p_cmd_resp->data_len + 2, 0);
-		} else if (sensor_type == SENSOR_BIST) {
+		} else if (strncmp(p_sensor_state->name, "BIST", SNR_NAME_MAX_LEN) == 0) {
 			int i;
 			p_cmd_ack = malloc(sizeof(cmd_ack_event) + sizeof(struct bist_data));
 			if (p_cmd_ack == NULL) {
@@ -1751,13 +1703,19 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack->ret = SUCCESS;
 			p_cmd_ack->buf_len = sizeof(struct bist_data);
 
-			p_cmd_resp->buf[0] = BIST_RET_NOSUPPORT;
+//			p_cmd_resp->buf[0] = BIST_RET_NOSUPPORT;
+
 			for (i = 0; i < PHY_SENSOR_MAX_NUM; i++) {
-				if (sensor_type_to_sensor_id[i] <= PHY_SENSOR_MAX_NUM)
-					p_cmd_ack->buf[i] = p_cmd_resp->buf[sensor_type_to_sensor_id[i]];
+				sensor_state_t *p_sensor_state = get_sensor_state_with_name(sensor_type_to_name_str[i].name);
+
+				if (p_sensor_state == NULL)
+					p_cmd_ack->buf[i] = BIST_RET_NOSUPPORT;
+				else if (p_sensor_state->sensor_id <= PHY_SENSOR_MAX_NUM)
+					p_cmd_ack->buf[i] = p_cmd_resp->buf[p_sensor_state->sensor_id];
 				else
 					p_cmd_ack->buf[i] = BIST_RET_NOSUPPORT;
 			}
+
 			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
 						+ sizeof(struct bist_data), 0);
 		} else {
@@ -1785,219 +1743,66 @@ fail:
 static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 {
 	psh_sensor_t sensor_type;
+	unsigned char sensor_id = p_cmd_resp->sensor_id;
+	sensor_state_t *p_sensor_state = get_sensor_state_with_id(sensor_id);
 
-	if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ACCELEROMETER])
-		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ACCELEROMETER_SEC])) {
+	if (p_sensor_state == NULL) {
+		LOGE("%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
 
-		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ACCELEROMETER])
-			sensor_type = SENSOR_ACCELEROMETER;
-		else
-			sensor_type = SENSOR_ACCELEROMETER_SEC;
-
-		struct accel_data *p_accel_data
-				= (struct accel_data *)p_cmd_resp->buf;
-
-		send_data_to_clients(sensor_type, p_accel_data,
-					p_cmd_resp->data_len,
-					sizeof(struct accel_data));
-	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_GYRO])
-		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_GYRO_SEC])) {
+	if ((strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0)
+		|| (strncmp(p_sensor_state->name, "GYRO1", SNR_NAME_MAX_LEN) == 0)) {
+		sensor_state_t *p_cal_sensor_state;
 		struct gyro_raw_data *p_gyro_raw_data;
 		struct gyro_raw_data *p_fake
 			= (struct gyro_raw_data *)p_cmd_resp->buf;
 		int i, len;
 
-		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_GYRO])
-			sensor_type = SENSOR_GYRO;
-		else
-			sensor_type = SENSOR_GYRO_SEC;
-
 		len = p_cmd_resp->data_len / (sizeof(struct gyro_raw_data) - 2);
 		p_gyro_raw_data = (struct gyro_raw_data *)malloc(len * sizeof(struct gyro_raw_data));
 		if (p_gyro_raw_data == NULL)
 			goto fail;
+
+		p_cal_sensor_state = get_sensor_state_with_name("GYROC");
 		for (i = 0; i < len; ++i) {
 			p_gyro_raw_data[i].x = p_fake[i].x;
 			p_gyro_raw_data[i].y = p_fake[i].y;
 			p_gyro_raw_data[i].z = p_fake[i].z;
 			p_gyro_raw_data[i].accuracy =
-				check_calibration_status(SENSOR_CALIBRATION_GYRO,
+				check_calibration_status(p_cal_sensor_state,
 							CALIBRATION_DONE);
 		}
-		send_data_to_clients(sensor_type, p_gyro_raw_data,
-					len*sizeof(struct gyro_raw_data),
-					sizeof(struct gyro_raw_data));
+		send_data_to_clients(p_sensor_state, p_gyro_raw_data,
+					len*sizeof(struct gyro_raw_data));
 		free(p_gyro_raw_data);
-	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_COMP])
-		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_COMP_SEC])) {
+	} else if ((strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0)
+		|| (strncmp(p_sensor_state->name, "COMP1", SNR_NAME_MAX_LEN) == 0)) {
+		sensor_state_t *p_cal_sensor_state;
 		struct compass_raw_data *p_compass_raw_data;
 		struct compass_raw_data *p_fake = (struct compass_raw_data *)p_cmd_resp->buf;
 		int i, len;
-
-		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_COMP])
-			sensor_type = SENSOR_COMP;
-		else
-			sensor_type = SENSOR_COMP_SEC;
 
 		len = p_cmd_resp->data_len / (sizeof(struct compass_raw_data) - 2);
 		p_compass_raw_data = malloc(len * sizeof(struct compass_raw_data));
 		if(p_compass_raw_data == NULL)
 			goto fail;
+
+		p_cal_sensor_state = get_sensor_state_with_name("COMPC");
 		for (i = 0; i < len; ++i){
 			p_compass_raw_data[i].x = p_fake[i].x;
 			p_compass_raw_data[i].y = p_fake[i].y;
 			p_compass_raw_data[i].z = p_fake[i].z;
 			p_compass_raw_data[i].accuracy =
-				check_calibration_status(SENSOR_CALIBRATION_COMP,
+				check_calibration_status(p_cal_sensor_state,
 							CALIBRATION_DONE);
 		}
 		//TODO What to do?
-		send_data_to_clients(sensor_type, p_compass_raw_data,
-					len*sizeof(struct compass_raw_data),
-					sizeof(struct compass_raw_data)); // Unggg ...
+		send_data_to_clients(p_sensor_state, p_compass_raw_data,
+					len*sizeof(struct compass_raw_data)); // Unggg ...
 		free(p_compass_raw_data);
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_TC]) {
-		struct tc_data *p_tc_data = (struct tc_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_TC, p_tc_data, p_cmd_resp->data_len,
-							sizeof(struct tc_data));
-	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_BARO])
-		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_BARO_SEC])) {
-		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_BARO])
-			sensor_type = SENSOR_BARO;
-		else
-			sensor_type = SENSOR_BARO_SEC;
-
-		struct baro_raw_data *p_baro_raw_data
-			= (struct baro_raw_data *)p_cmd_resp->buf;
-		send_data_to_clients(sensor_type, p_baro_raw_data,
-						p_cmd_resp->data_len,
-						sizeof(struct baro_raw_data));
-	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ALS])
-		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ALS_SEC])) {
-		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_ALS])
-			sensor_type = SENSOR_ALS;
-		else
-			sensor_type = SENSOR_ALS_SEC;
-
-		struct als_raw_data *p_als_raw_data
-			 = (struct als_raw_data *)p_cmd_resp->buf;
-		send_data_to_clients(sensor_type, p_als_raw_data,
-						p_cmd_resp->data_len,
-						sizeof(struct als_raw_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ACTIVITY]) {
-		struct phy_activity_data *p_phy_activity_data
-			= (struct phy_activity_data *)p_cmd_resp->buf;
-		int us = p_phy_activity_data->len *
-			sizeof(p_phy_activity_data->values[0]) +
-			sizeof(p_phy_activity_data->len);
-		send_data_to_clients(SENSOR_ACTIVITY, p_phy_activity_data,
-					p_cmd_resp->data_len,
-					us);
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GS]) {
-		struct gs_data *p_gs_data
-			= (struct gs_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_GS, p_gs_data, p_cmd_resp->data_len,
-					sizeof(struct gs_data));
-	} else if ((p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_PROXIMITY])
-		|| (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_PROXIMITY_SEC])) {
-		if (p_cmd_resp->sensor_id == sensor_type_to_sensor_id[SENSOR_PROXIMITY])
-			sensor_type = SENSOR_PROXIMITY;
-		else
-			sensor_type = SENSOR_PROXIMITY_SEC;
-
-		struct ps_phy_data *p_ps_phy_data
-			= (struct ps_phy_data *)p_cmd_resp->buf;
-		send_data_to_clients(sensor_type, p_ps_phy_data,
-					p_cmd_resp->data_len,
-					sizeof(struct ps_phy_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK]) {
-		struct gesture_flick_data *p_gesture_flick_data
-			= (struct gesture_flick_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_GESTURE_FLICK, p_gesture_flick_data,
-					p_cmd_resp->data_len,
-					sizeof(struct gesture_flick_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_SHAKING]) {
-		struct shaking_data *p_shaking_data
-			= (struct shaking_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_SHAKING, p_shaking_data,
-					p_cmd_resp->data_len,
-					sizeof(struct shaking_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_STAP]) {
-		struct stap_data *p_stap_data
-			= (struct stap_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_STAP, p_stap_data,
-					p_cmd_resp->data_len,
-					sizeof(struct stap_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR]) {
-		struct rotation_vector_data *p_rotation_vector_data
-			= (struct rotation_vector_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_ROTATION_VECTOR,
-					p_rotation_vector_data,
-					p_cmd_resp->data_len,
-					sizeof(struct rotation_vector_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_GRAVITY]) {
-		struct gravity_data *p_gravity_data
-			= (struct gravity_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_GRAVITY, p_gravity_data,
-					p_cmd_resp->data_len,
-					sizeof(struct gravity_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL]) {
-		struct linear_accel_data *p_linear_accel_data
-			= (struct linear_accel_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_LINEAR_ACCEL, p_linear_accel_data,
-					p_cmd_resp->data_len,
-					sizeof(struct linear_accel_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_ORIENTATION]) {
-		struct orientation_data *p_orientation_data
-			= (struct orientation_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_ORIENTATION, p_orientation_data,
-					p_cmd_resp->data_len,
-					sizeof(struct orientation_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_9DOF]) {
-		struct ndof_data *p_ndof_data
-			= (struct ndof_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_9DOF, p_ndof_data,
-					p_cmd_resp->data_len,
-					sizeof(struct ndof_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_PEDOMETER]) {
-		struct pedometer_data *p_pedometer_data
-			= (struct pedometer_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_PEDOMETER, p_pedometer_data,
-					p_cmd_resp->data_len,
-					sizeof(struct pedometer_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_MAG_HEADING]) {
-		struct mag_heading_data *p_mag_heading_data
-			= (struct mag_heading_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_MAG_HEADING, p_mag_heading_data,
-					p_cmd_resp->data_len,
-					sizeof(struct mag_heading_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_LPE]) {
-		struct lpe_phy_data *p_lpe_phy_data
-			= (struct lpe_phy_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_LPE, p_lpe_phy_data,
-					p_cmd_resp->data_len,
-					sizeof(struct lpe_phy_data));
-	} else if (p_cmd_resp->sensor_id
-			== sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
-		struct md_data *p_md_data
-			= (struct md_data *)p_cmd_resp->buf;
-		send_data_to_clients(SENSOR_MOVE_DETECT, p_md_data,
-					p_cmd_resp->data_len,
-					sizeof(struct md_data));
+        } else {
+		send_data_to_clients(p_sensor_state, p_cmd_resp->buf, p_cmd_resp->data_len);
 	}
 
 	return;
@@ -2005,148 +1810,18 @@ fail:
 	LOGE("failed to allocate memory \n");
 }
 
-static void debug_data_rate(struct cmd_resp *p_cmd_resp)
-{
-	static int restart = 1;
-	static int count[SENSOR_MAX];
-	static struct timeval tv_start, tv_current;
-
-	if (restart) {
-		restart = 0;
-		gettimeofday(&tv_start, NULL);
-		memset(&count[0], 0, sizeof(count));
-	}
-
-	if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ACCELEROMETER]) {
-		count[SENSOR_ACCELEROMETER] += p_cmd_resp->data_len / sizeof(struct accel_data);
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_GYRO]) {
-		count[SENSOR_GYRO] += p_cmd_resp->data_len / (sizeof(struct gyro_raw_data) - 2);
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_COMP]) {
-		count[SENSOR_COMP] += p_cmd_resp->data_len / (sizeof(struct compass_raw_data) - 2);
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_TC]) {
-		count[SENSOR_TC] += p_cmd_resp->data_len / (sizeof(struct tc_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_BARO]) {
-		count[SENSOR_BARO] += p_cmd_resp->data_len / (sizeof(struct baro_raw_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ALS]) {
-		count[SENSOR_ALS] += p_cmd_resp->data_len / (sizeof(struct als_raw_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ACTIVITY]) {
-		struct phy_activity_data *p_phy_activity_data
-			= (struct phy_activity_data *)p_cmd_resp->buf;
-		int us = p_phy_activity_data->len *
-			sizeof(p_phy_activity_data->values[0]) +
-			sizeof(p_phy_activity_data->len);
-
-		count[SENSOR_ACTIVITY] += p_cmd_resp->data_len / us;
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_GS]) {
-		count[SENSOR_GS] += p_cmd_resp->data_len / (sizeof(struct gs_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_PROXIMITY]) {
-		count[SENSOR_PROXIMITY] += p_cmd_resp->data_len / (sizeof(struct ps_phy_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK]) {
-		count[SENSOR_GESTURE_FLICK] += p_cmd_resp->data_len / (sizeof(struct gesture_flick_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_SHAKING]) {
-		count[SENSOR_SHAKING] += p_cmd_resp->data_len / (sizeof(struct shaking_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_STAP]) {
-		count[SENSOR_STAP] += p_cmd_resp->data_len / (sizeof(struct stap_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR]) {
-		count[SENSOR_ROTATION_VECTOR] += p_cmd_resp->data_len / (sizeof(struct rotation_vector_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_GRAVITY]) {
-		count[SENSOR_GRAVITY] += p_cmd_resp->data_len / (sizeof(struct gravity_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL]) {
-		count[SENSOR_LINEAR_ACCEL] += p_cmd_resp->data_len / (sizeof(struct linear_accel_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_ORIENTATION]) {
-		count[SENSOR_ORIENTATION] += p_cmd_resp->data_len / (sizeof(struct orientation_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_9DOF]) {
-		count[SENSOR_9DOF] += p_cmd_resp->data_len / (sizeof(struct ndof_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_PEDOMETER]) {
-		count[SENSOR_PEDOMETER] += p_cmd_resp->data_len / (sizeof(struct pedometer_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_MAG_HEADING]) {
-		count[SENSOR_MAG_HEADING] += p_cmd_resp->data_len / (sizeof(struct mag_heading_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_LPE]) {
-		count[SENSOR_LPE] += p_cmd_resp->data_len / (sizeof(struct lpe_phy_data));
-	} else if (p_cmd_resp->sensor_id
-		== sensor_type_to_sensor_id[SENSOR_MOVE_DETECT]) {
-		count[SENSOR_MOVE_DETECT] += p_cmd_resp->data_len / (sizeof(struct md_data));
-	}
-
-	gettimeofday(&tv_current, NULL);
-
-	int interval = tv_current.tv_sec - tv_start.tv_sec;
-	log_message(DEBUG, "interval is %d\n", interval);
-	if ( interval >= 5) {
-		// report data rate
-		log_message(DEBUG, "ACCEL:    %d Hz \n"
-				"GYRO:     %d Hz \n"
-				"COMP:     %d Hz \n"
-				"TC:       %d Hz \n"
-				"BARO:     %d Hz \n"
-				"ALS:      %d Hz \n"
-				"ACTIVITY: %d Hz \n"
-				"GS:       %d Hz \n"
-				"PROXI:    %d Hz \n"
-				"G_FLICK:  %d Hz \n"
-				"R_VECT:   %d Hz \n"
-				"GRAVITY:  %d Hz \n"
-				"L_ACCEL:  %d Hz \n"
-				"ORIENT:   %d Hz \n"
-				"9DOF:     %d Hz \n"
-				"PEDOMET:  %d Hz \n"
-				"MAG_H:    %d Hz \n"
-				"LPE:      %d Hz \n"
-				"SHAKING:  %d Hz \n"
-				"MOVDT:    %d Hz \n"
-				"STAP:     %d Hz \n",
-				count[SENSOR_ACCELEROMETER]/interval,
-				count[SENSOR_GYRO]/interval,
-				count[SENSOR_COMP]/interval,
-				count[SENSOR_TC]/interval,
-				count[SENSOR_BARO]/interval,
-				count[SENSOR_ALS]/interval,
-				count[SENSOR_ACTIVITY]/interval,
-				count[SENSOR_GS]/interval,
-				count[SENSOR_PROXIMITY]/interval,
-				count[SENSOR_GESTURE_FLICK]/interval,
-				count[SENSOR_ROTATION_VECTOR]/interval,
-				count[SENSOR_GRAVITY]/interval,
-				count[SENSOR_LINEAR_ACCEL]/interval,
-				count[SENSOR_ORIENTATION]/interval,
-				count[SENSOR_9DOF]/interval,
-				count[SENSOR_PEDOMETER]/interval,
-				count[SENSOR_MAG_HEADING]/interval,
-				count[SENSOR_LPE]/interval,
-				count[SENSOR_SHAKING]/interval,
-				count[SENSOR_MOVE_DETECT]/interval,
-				count[SENSOR_STAP]/interval);
-
-		restart = 1;
-	}
-}
-
 static void handle_calibration(struct cmd_calibration_param * param){
+	sensor_state_t *p_sensor_state;
 	session_state_t *p_session_state;
 	cmd_ack_event *p_cmd_ack;
 	psh_sensor_t sensor_type = param->sensor_type;
 
-	p_session_state = sensor_list[sensor_type].list;
+	p_sensor_state = get_sensor_state_with_name(sensor_type_to_name_str[sensor_type].name);
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+	p_session_state = p_sensor_state->list;
 
 	log_message(DEBUG, "Subcmd:%d.  Calibrated? %u\n", param->sub_cmd, param->calibrated);
 
@@ -2179,7 +1854,7 @@ fail:
 
 	if (param->calibrated == SUBCMD_CALIBRATION_TRUE) {
 		param->sub_cmd = SUBCMD_CALIBRATION_SET;
-		set_calibration_status(sensor_type, CALIBRATION_DONE, param);
+		set_calibration_status(p_sensor_state, CALIBRATION_DONE, param);
 	} else {
 		log_message(DEBUG, "Get calibration message, but calibrated not done.\n");
 	}
@@ -2189,8 +1864,16 @@ fail:
 static void handle_add_event_resp(struct cmd_resp *p_cmd_resp)
 {
 	unsigned char trans_id = p_cmd_resp->tran_id;
-	session_state_t *p_session_state = sensor_list[SENSOR_EVENT].list;
+	sensor_state_t *p_sensor_state = get_sensor_state_with_name("EVENT");
+	session_state_t *p_session_state;
 	cmd_ack_event *p_cmd_ack;
+
+	if (p_sensor_state == NULL) {
+		LOGE("%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+	p_session_state = p_sensor_state->list;
 
 	/* trans_id starts from 1, 0 means no trans_id */
 	for (; p_session_state != NULL;
@@ -2230,7 +1913,15 @@ static void handle_clear_event_resp(struct cmd_resp *p_cmd_resp)
 static void dispatch_event(struct cmd_resp *p_cmd_resp)
 {
 	unsigned char event_id;
-	session_state_t *p_session_state = sensor_list[SENSOR_EVENT].list;
+	sensor_state_t *p_sensor_state = get_sensor_state_with_name("EVENT");
+	session_state_t *p_session_state;
+
+	if (p_sensor_state == NULL) {
+		LOGE("%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+	p_session_state = p_sensor_state->list;
 
 	if (p_cmd_resp->data_len != 0) {
 		event_id = p_cmd_resp->buf[0];
@@ -2309,10 +2000,7 @@ static void dispatch_data()
 			dispatch_get_single(p_cmd_resp);
 		else if (p_cmd_resp->cmd_type == RESP_STREAMING) {
 			dispatch_streaming(p_cmd_resp);
-			if (enable_debug_data_rate)
-				debug_data_rate(p_cmd_resp);
-			}
-		else if (p_cmd_resp->cmd_type == RESP_COMP_CAL_RESULT){
+		} else if (p_cmd_resp->cmd_type == RESP_COMP_CAL_RESULT){
 			struct cmd_calibration_param param;
 			struct resp_compasscal *p = (struct resp_compasscal*)p_cmd_resp->buf;
 
@@ -2366,7 +2054,7 @@ static void remove_session_by_fd(int fd)
 {
 	int i = 0;
 
-	while (i < SENSOR_MAX) {
+	for (i = 0; i < current_sensor_index; i ++) {
 		session_state_t *p, *p_session_state = sensor_list[i].list;
 
 		p = p_session_state;
@@ -2381,7 +2069,7 @@ static void remove_session_by_fd(int fd)
 //			close(p_session_state->ctlfd);
 //			close(p_session_state->datafd);
 
-			if (i == SENSOR_EVENT) {
+			if (strncmp(sensor_list[i].name, "EVENT", SNR_NAME_MAX_LEN) == 0) {
 			/* special treatment for SENSOR_EVENT */
 				handle_clear_event(p_session_state);
 			} else if (i == SENSOR_CALIBRATION_COMP ||
@@ -2389,26 +2077,29 @@ static void remove_session_by_fd(int fd)
 
 			} else {
 
-				stop_streaming(i, p_session_state);
+				stop_streaming(&sensor_list[i], p_session_state);
 			}
 			if (p_session_state == sensor_list[i].list)
 				sensor_list[i].list = p_session_state->next;
 			else
 				p->next = p_session_state->next;
 
-			if (i == SENSOR_COMP || i == SENSOR_GYRO) {
+			if (strncmp(sensor_list[i].name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(sensor_list[i].name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
+				sensor_state_t *p_sensor_state;
 				/* In this case, this session is closed,
 				 * So calibration parameter is needed to store to file
 				 */
-				psh_sensor_t cal_sensor = (i == SENSOR_COMP) ?
-							SENSOR_CALIBRATION_COMP :
-							SENSOR_CALIBRATION_GYRO;
+				if (strncmp(sensor_list[i].name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
+					p_sensor_state = get_sensor_state_with_name("COMPC");
+				} else {
+					p_sensor_state = get_sensor_state_with_name("GYROC");
+				}
 
 				/* Set the CALIBRATION_NEED_STORE bit,
 				 * parameter will be stored when get_calibration() response arrives
 				 */
-				set_calibration_status(cal_sensor, CALIBRATION_NEED_STORE, NULL);
-				get_calibration(cal_sensor, NULL);
+				set_calibration_status(p_sensor_state, CALIBRATION_NEED_STORE, NULL);
+				get_calibration(p_sensor_state, NULL);
 			}
 
 			log_message(DEBUG, "session with datafd %d, ctlfd %d "
@@ -2417,8 +2108,6 @@ static void remove_session_by_fd(int fd)
 			free(p_session_state);
 			return;
 		}
-
-		i++;
         }
 }
 
@@ -2460,6 +2149,7 @@ static void *screen_state_thread(void *cookie)
 	return NULL;
 }
 
+#if 0
 void handle_screen_state_change(void)
 {
 	int i;
@@ -2500,6 +2190,7 @@ void handle_screen_state_change(void)
 		}
 	}
 }
+#endif
 
 static void handle_no_stop_no_report()
 {
@@ -2507,9 +2198,8 @@ static void handle_no_stop_no_report()
 	int value;
 	session_state_t *p;
 
-	for (i = 0; i < SENSOR_BIST; i++) {
-		if (i == SENSOR_CALIBRATION_COMP ||
-			i == SENSOR_CALIBRATION_GYRO)
+	for (i = 0; i < current_sensor_index; i ++) {
+		if (strncmp(sensor_list[i].name, "COMPC", SNR_NAME_MAX_LEN) == 0 || strncmp(sensor_list[i].name, "GYROC", SNR_NAME_MAX_LEN) == 0)
 			continue;
 
 		p = sensor_list[i].list;
@@ -2520,10 +2210,10 @@ static void handle_no_stop_no_report()
 				if (i == SENSOR_PEDOMETER) {
 					if (screen_state == 0) {
 						value = 1;
-						send_set_property(i, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
+						send_set_property(&sensor_list[i], PROP_STOP_REPORTING, 4, (unsigned char *)&value);
 					} else {
 						value = 0;
-						send_set_property(i, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
+						send_set_property(&sensor_list[i], PROP_STOP_REPORTING, 4, (unsigned char *)&value);
 					}
 				}
 			}
@@ -2679,9 +2369,7 @@ static void setup_psh()
 	return;
 }
 
-
 #define CMD_GET_STATUS		11
-#define SNR_NAME_MAX_LEN	5
 
 static void get_status()
 {
@@ -2744,8 +2432,12 @@ static void get_status()
 		if ((unsigned int)ret < sizeof(resp))
 			exit(EXIT_FAILURE);
 
-		if (resp.cmd_type != CMD_GET_STATUS)
-			exit(EXIT_FAILURE);
+		if (resp.cmd_type != CMD_GET_STATUS) {
+			ret = read(datafd, buf, resp.data_len);
+			if (ret != resp.data_len)
+				exit(EXIT_FAILURE);
+			continue;
+		}
 
 		if (resp.data_len == 0)
 			break;
@@ -2754,158 +2446,29 @@ static void get_status()
 		if (ret != resp.data_len)
 			exit(EXIT_FAILURE);
 
+		if (current_sensor_index > MAX_SENSOR_INDEX) {
+			sensor_list = realloc(sensor_list, sizeof(sensor_state_t) * (current_sensor_index + 1));
+			memset(&sensor_list[current_sensor_index], 0, sizeof(sensor_state_t));
+		}
+
 		snr_info = (struct sensor_info *)buf;
 
-		LOGI("sensor id is %d, name is %s, freq_max is %d \n", snr_info->id, snr_info->name, snr_info->freq_max);
+		LOGI("sensor id is %d, name is %s, freq_max is %d, current_sensor_index is %d \n", snr_info->id, snr_info->name, snr_info->freq_max, current_sensor_index);
 
-		if (strncmp(snr_info->name, "ACCEL", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ACCELEROMETER] = snr_info->id;
-			sensor_list[SENSOR_ACCELEROMETER].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER],
-									sensor_list[SENSOR_ACCELEROMETER].freq_max);
-		} else if (strncmp(snr_info->name, "GYROC", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO] = snr_info->id;
-			LOGI("id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_GYRO]);
-		} else if (strncmp(snr_info->name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_GYRO] = snr_info->id;
-			sensor_list[SENSOR_GYRO].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GYRO],
-									sensor_list[SENSOR_GYRO].freq_max);
-		} else if (strncmp(snr_info->name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_COMP] = snr_info->id;
-			sensor_list[SENSOR_COMP].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_COMP],
-									sensor_list[SENSOR_COMP].freq_max);
-		} else if (strncmp(snr_info->name, "BARO", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_BARO] = snr_info->id;
-			sensor_list[SENSOR_BARO].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BARO],
-									sensor_list[SENSOR_BARO].freq_max);
-		} else if (strncmp(snr_info->name, "ALS_P", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ALS] = snr_info->id;
-			sensor_list[SENSOR_ALS].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ALS],
-									sensor_list[SENSOR_ALS].freq_max);
-		} else if (strncmp(snr_info->name, "PS_P", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_PROXIMITY] = snr_info->id;
-			sensor_list[SENSOR_PROXIMITY].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PROXIMITY],
-									sensor_list[SENSOR_PROXIMITY].freq_max);
-		} else if (strncmp(snr_info->name, "TERMC", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_TC] = snr_info->id;
-			sensor_list[SENSOR_TC].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_TC],
-									sensor_list[SENSOR_TC].freq_max);
-		} else if (strncmp(snr_info->name, "GSSPT", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_GS] = snr_info->id;
-			sensor_list[SENSOR_GS].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GS],
-									sensor_list[SENSOR_GS].freq_max);
-		} else if (strncmp(snr_info->name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ACTIVITY] = snr_info->id;
-			sensor_list[SENSOR_ACTIVITY].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACTIVITY],
-									sensor_list[SENSOR_ACTIVITY].freq_max);
-		} else if (strncmp(snr_info->name, "9DOF", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_9DOF] = snr_info->id;
-			sensor_list[SENSOR_9DOF].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_9DOF],
-									sensor_list[SENSOR_9DOF].freq_max);
-		} else if (strncmp(snr_info->name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK] = snr_info->id;
-			sensor_list[SENSOR_GESTURE_FLICK].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GESTURE_FLICK],
-									sensor_list[SENSOR_GESTURE_FLICK].freq_max);
-		} else if (strncmp(snr_info->name, "SHAKI", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_SHAKING] = snr_info->id;
-			sensor_list[SENSOR_SHAKING].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_SHAKING],
-									sensor_list[SENSOR_SHAKING].freq_max);
-		} else if (strncmp(snr_info->name, "STAP", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_STAP] = snr_info->id;
-			sensor_list[SENSOR_STAP].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_STAP],
-									sensor_list[SENSOR_STAP].freq_max);
-		} else if (strncmp(snr_info->name, "GRAVI", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_GRAVITY] = snr_info->id;
-			sensor_list[SENSOR_GRAVITY].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GRAVITY],
-									sensor_list[SENSOR_GRAVITY].freq_max);
-		} else if (strncmp(snr_info->name, "ORIEN", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ORIENTATION] = snr_info->id;
-			sensor_list[SENSOR_ORIENTATION].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ORIENTATION],
-									sensor_list[SENSOR_ORIENTATION].freq_max);
-		} else if (strncmp(snr_info->name, "LACCL", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL] = snr_info->id;
-			sensor_list[SENSOR_LINEAR_ACCEL].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LINEAR_ACCEL],
-									sensor_list[SENSOR_LINEAR_ACCEL].freq_max);
-		} else if (strncmp(snr_info->name, "RVECT", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR] = snr_info->id;
-			sensor_list[SENSOR_ROTATION_VECTOR].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ROTATION_VECTOR],
-									sensor_list[SENSOR_ROTATION_VECTOR].freq_max);
-		} else if (strncmp(snr_info->name, "MAGHD", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_MAG_HEADING] = snr_info->id;
-			sensor_list[SENSOR_MAG_HEADING].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MAG_HEADING],
-									sensor_list[SENSOR_MAG_HEADING].freq_max);
-		} else if (strncmp(snr_info->name, "PEDOM", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_PEDOMETER] = snr_info->id;
-			sensor_list[SENSOR_PEDOMETER].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PEDOMETER],
-									sensor_list[SENSOR_PEDOMETER].freq_max);
-		} else if (strncmp(snr_info->name, "LPE_P", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_LPE] = snr_info->id;
-			sensor_list[SENSOR_LPE].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_LPE],
-									sensor_list[SENSOR_LPE].freq_max);
-		} else if (strncmp(snr_info->name, "COMPC", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP] = snr_info->id;
-			LOGI("id is %d\n", sensor_type_to_sensor_id[SENSOR_CALIBRATION_COMP]);
-		} else if (strncmp(snr_info->name, "MOVDT", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_MOVE_DETECT] = snr_info->id;
-			sensor_list[SENSOR_MOVE_DETECT].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_MOVE_DETECT],
-									sensor_list[SENSOR_MOVE_DETECT].freq_max);
-		} else if (strncmp(snr_info->name, "BIST", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_BIST] = snr_info->id;
-			sensor_list[SENSOR_BIST].freq_max = snr_info->freq_max;
-			LOGI("id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BIST],
-									sensor_list[SENSOR_BIST].freq_max);
-		} else if (strncmp(snr_info->name, "ACC1", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ACCELEROMETER_SEC] = snr_info->id;
-			sensor_list[SENSOR_ACCELEROMETER_SEC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ACCELEROMETER_SEC],
-									sensor_list[SENSOR_ACCELEROMETER_SEC].freq_max);
-		} else if (strncmp(snr_info->name, "GYRO1", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_GYRO_SEC] = snr_info->id;
-			sensor_list[SENSOR_GYRO_SEC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_GYRO_SEC],
-									sensor_list[SENSOR_GYRO_SEC].freq_max);
-		} else if (strncmp(snr_info->name, "COMP1", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_COMP_SEC] = snr_info->id;
-			sensor_list[SENSOR_COMP_SEC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_COMP_SEC],
-									sensor_list[SENSOR_COMP_SEC].freq_max);
-		} else if (strncmp(snr_info->name, "ALS1", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_ALS_SEC] = snr_info->id;
-			sensor_list[SENSOR_ALS_SEC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_ALS_SEC],
-									sensor_list[SENSOR_ALS_SEC].freq_max);
-		} else if (strncmp(snr_info->name, "PS1", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_PROXIMITY_SEC] = snr_info->id;
-			sensor_list[SENSOR_PROXIMITY_SEC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_PROXIMITY_SEC],
-									sensor_list[SENSOR_PROXIMITY_SEC].freq_max);
-		} else if (strncmp(snr_info->name, "BARO1", SNR_NAME_MAX_LEN) == 0) {
-			sensor_type_to_sensor_id[SENSOR_BARO_SEC] = snr_info->id;
-			sensor_list[SENSOR_BARO_SEC].freq_max = snr_info->freq_max;
-			log_message(DEBUG, "id is %d, freq_max is %d \n", sensor_type_to_sensor_id[SENSOR_BARO_SEC],
-									sensor_list[SENSOR_BARO_SEC].freq_max);
-		}
+		sensor_list[current_sensor_index].sensor_id = snr_info->id;
+		sensor_list[current_sensor_index].freq_max = snr_info->freq_max;
+		memcpy(sensor_list[current_sensor_index].name, snr_info->name, SNR_NAME_MAX_LEN);
+
+		current_sensor_index++;
 	}
+
+	if (current_sensor_index > MAX_SENSOR_INDEX) {
+		sensor_list = realloc(sensor_list, sizeof(sensor_state_t) * (current_sensor_index + 1));
+		memset(&sensor_list[current_sensor_index], 0, sizeof(sensor_state_t));
+	}
+
+	memcpy(sensor_list[current_sensor_index].name, "EVENT", SNR_NAME_MAX_LEN);
+	current_sensor_index++;
 
 	gettimeofday(&tv1, NULL);
 	LOGI("latency of is get_status() is "
@@ -2934,7 +2497,6 @@ int main(int argc, char **argv)
 
 	while (1) {
 		static struct option opts[] = {
-			{"enable-data-rate-debug", 1, NULL, 'd'},
 			{"log-level", 2, NULL, 'l'},
 			{"help", 0, NULL, 'h'},
 			{0, 0, NULL, 0}
@@ -2947,11 +2509,6 @@ int main(int argc, char **argv)
 			break;
 
 		switch (o) {
-		case 'd':
-			if (optarg != NULL)
-				enable_debug_data_rate = strtod(optarg, NULL);
-			log_message(DEBUG, "enable_debug_data_rate is %d \n", enable_debug_data_rate);
-			break;
 		case 'l':
 			if (optarg != NULL)
 				log_level = strtod(optarg, NULL);
@@ -2966,9 +2523,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-//	daemonize();
-
-	memset(sensor_list, 0, sizeof(sensor_list));
+	sensor_list = malloc((MAX_SENSOR_INDEX + 1) * sizeof(sensor_state_t));
+	memset(sensor_list, 0, (MAX_SENSOR_INDEX + 1) * sizeof(sensor_state_t));
 	while (1) {
 		reset_sensorhub();
 		if (platform == BAYTRAIL)
