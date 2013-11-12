@@ -1,58 +1,25 @@
 This doc includes,
-    - the instructions of getting code
-    - the instructions of compiling and installing sensord, libsensorhub and test case
-    - the instructions of running sensorhubd
     - the instructions of running test case
     - description of libsensorhub API
     - supported features, sensors
-    - TODO list
     - measured data transmission latency in sensorhubd
-    - the hacking way of launching sensorhubd automatically during system boot
+    - Calibration Setting Application install
 
-1 the instructions of getting code
-    1.1 cd <root-of-Android-source-tree>/vendor/intel/hardware/
-    1.2 git clone git@shsrv888.sh.intel.com:libsensorhub.git ./sensorhub
-
-2 The instructions of compiling and installing sensord, libsensorhub and test case
-    2.1 compile
-        - cd <root-of-Android-source-tree>/vendor/intel/hardware/sensorhub
-        - mm
-    2.2 install
-        - adb remount
-        - adb push <root-of-Android-source-tree>/out/target/product/mfld_pr2/symbols/system/bin/sensorhubd /system/bin
-        - adb push <root-of-Android-source-tree>/out/target/product/mfld_pr2/symbols/system/lib/libsensorhub.so /system/lib
-        - adb push <root-of-Android-source-tree>/out/target/product/mfld_pr2/symbols/system/bin/sensorhub_client /data
-        - adb push <root-of-Android-source-tree>/out/target/product/mfld_pr2/symbols/system/lib/libPSHSensorCal_JNI.so /system/lib
-
-3 The instructions of running sensorhubd
-    3.1 prerequisite
-        - cd <root-of-Android-source-tree>
-        - disable accel sensor and gyro sensor driver by commenting out CONFIG_SENSORS_LIS3DH_ACC and CONFIG_SENSORS_MPU3050 in kernel/drivers/hwmon/Makefile
-        - make boottarball; adb reboot recovery
-        - cd out/target/product/mfld_pr2/
-        - fastboot flash boot boot.bin
-        - compile psh_sc.ko; adb push psh_sc.ko <target-directory>
-        - adb shell; cd <target-directory>; insmod psh_sc.ko
-    3.2 launch sensorhubd
-        - ./sensorhubd --log-level=<0, 2>    # 2 is most verbose log level; --enable-data-rate-debug=<0, 1>    # 1 enable, 0 disable
-    3.3 watch sensorhubd log
-        - tail -f /data/sensorhubd.log
-
-4 The instructions of running test case
+1 The instructions of running test case
     Usage: sensorhub_client [OPTION...]
             -c, --cmd-type           0, get_single; 1 get_streaming
-            -t, --sensor-type        0, accel; 1, gyro; 2, compass; 3, barometer; 4, ALS; 5, Proximity; 6, terminal context; 7, physical activity; 8, gesture spotting; 9, gesture flick;
-                                     10, rotation vector; 11, gravity; 12, linear acceleration; 13, orientation; 15, 9dof; 16, magnetic heading
+            -t, --sensor-type        0, accel; 1, gyro; 2, compass; 3, barometer; 4, ALS; 5, Proximity; 6, terminal context; 7, LPE; 14, physical activity; 15, gesture spotting; 16, gesture flick;
+                                     17, rotation vector; 18, gravity; 19, linear acceleration; 20, orientation; 23, 9dof; 24, pedometer; 25, magnetic heading; 26, shaking; 27, move detect; 28, stap
             -r, --date-rate          unit is Hz
             -d, --buffer-delay       unit is ms, i.e. 1/1000 second
 
-5 Libsensorhub API
+2 Libsensorhub API
     5.1 definition
         - libsensorhub API is defined at src/include/libsensorhub.h
     5.2 usage
         - refer to test case code at src/tests/sensor_hub_client.c
 
-6 Supported features, sensors
+3 Supported features, sensors
     6.1 supported features
         - START_STREAMING: data rate and buffer delay can be set. Data rate unit is Hz; buffer delay unit is ms.
         - STOP_STREAMING: stop the streamed data reporting
@@ -69,13 +36,7 @@ This doc includes,
         - gesture spotting sensor
         - gesture flick sensor
 
-7 TODO list
-    7.1 add a license/copyright claiming header
-    7.2 use log mechanism provided by Android to replace the current solution, i.e. log message to /data/sensord.log
-    7.3 the current algorithm of finding session_state with a fd is O(n), need to rewrite it with O(1) algorithm
-    7.4 set sensorhubd as high priority to reduce the data transmission latency when system is busy
-
-8 Measured data transmission latency in sensorhubd (need to be done every time the code related to data dispatching is modified)
+4 Measured data transmission latency in sensorhubd (need to be done every time the code related to data dispatching is modified)
     8.0 latest test date: 2011.12.30
     8.1 test method
         - record start_time when data is available on sysfs data node
@@ -91,20 +52,7 @@ This doc includes,
         - result: 90% latency is between (220, 420)us, i.e. less than 1/1000 second. Max latency is about 1000us with less than 1% possibility
         - note: "./sensorhub_client -t 0 -r 5 -d 0" is the same as the request made by Android sensor HAL
 
-9 The hacking way of launching sensorhubd automatically during system boot. This is just for testing, we need to figure out the right way to integrate psh_sc.ko and libsensorhub into Android in the long term
-    9.1 cd <root-of-Android-source-tree>
-    9.2 edit vendor/intel/mfld_pr2/init.mfld_pr2.rc and make it take effect
-        - add a new line "insmod /data/psh_sc.ko" in "on init" section
-        - add a new service as below
-            # adding sensorhubd
-              service sensorhubd /data/sensorhubd --log-level=2
-              user root
-              group system
-              oneshot
-        - make boottarball
-        - adb reboot recovery; cd out/target/product/mfld_pr2; fastboot flash boot boot.bin; fastboot reboot
-
-10 Calibration Setting Application install
+5 Calibration Setting Application install
     10.1 For ICS:
          - cd <root-of-Android-source-tree>/packages/apps/Settings/src/com/android/settings
          - git fetch git://android.intel.com/a/aosp/platform/packages/apps/Settings refs/changes/87/55687/1 && git checkout FETCH_HEAD
