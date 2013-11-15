@@ -38,6 +38,7 @@ typedef enum {
 	SENSOR_SHAKING,
 	SENSOR_MOVE_DETECT,
 	SENSOR_STAP,
+	SENSOR_PAN_TILT_ZOOM,
 
 	SENSOR_BIST,
 
@@ -226,6 +227,11 @@ struct shaking_data {
 struct stap_data {
 	short stap;
 } __attribute__ ((packed));
+
+struct ptz_data {
+	short cls_name;	/* ptz class: pan, tilt, zoom */
+	short angle;		/* ptz angle: 0.1deg/s */
+}__attribute__ ((packed));
 
 struct rotation_vector_data {
 	int x;
