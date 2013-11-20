@@ -39,6 +39,7 @@ typedef enum {
 	SENSOR_MOVE_DETECT,
 	SENSOR_STAP,
 	SENSOR_PAN_TILT_ZOOM,
+	SENSOR_LIFT_VERTICAL,
 
 	SENSOR_BIST,
 
@@ -322,6 +323,10 @@ struct lpe_phy_data {
 #define MD_STATE_STILL 2
 
 struct md_data {
+	short state;
+} __attribute__ ((packed));
+
+struct lv_data {
 	short state;
 } __attribute__ ((packed));
 
