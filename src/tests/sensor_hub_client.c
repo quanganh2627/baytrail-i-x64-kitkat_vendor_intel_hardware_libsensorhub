@@ -327,20 +327,19 @@ static void dump_orientation_data(int fd)
 	int size = 0;
 	struct orientation_data *p_orientation_data;
 
-        while ((size = read(fd, buf, 512)) > 0) {
-                char *p = buf;
-                p_orientation_data = (struct orientation_data *)buf;
-                while (size > 0) {
-                        printf("orientation data is (%d, %d, %d), size is %d\n",
-                                p_orientation_data->azimuth,
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_orientation_data = (struct orientation_data *)buf;
+		while (size > 0) {
+			printf("orientation data is (%d, %d, %d), size is %d\n",
+				p_orientation_data->azimuth,
 				p_orientation_data->pitch,
 				p_orientation_data->roll, size);
-                        size = size - sizeof(struct orientation_data);
-                        p = p + sizeof(struct orientation_data);
+			size = size - sizeof(struct orientation_data);
+			p = p + sizeof(struct orientation_data);
 			p_orientation_data = (struct orientation_data *)p;
-                }
-        }
-
+		}
+	}
 }
 
 static void dump_9dof_data(int fd)
@@ -442,11 +441,30 @@ static void dump_md_data(int fd)
 	}
 }
 
+static void dump_ptz_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct ptz_data *p_ptz_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_ptz_data = (struct ptz_data *)buf;
+		while (size > 0) {
+			printf("pantiltzoom data is %d, angle is %d, size is %d \n",
+				p_ptz_data->cls_name, p_ptz_data->angle, size);
+			size = size - sizeof(struct ptz_data);
+			p = p + sizeof(struct ptz_data);
+			p_ptz_data = (struct ptz_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
-	printf("  -c, --cmd-type           0, get_single; 1 get_streaming \n");
-	printf("  -t, --sensor-type        0, accel; 1, gyro; 2, compass;"
+	printf("  -c, --cmd-type		   0, get_single; 1 get_streaming \n");
+	printf("  -t, --sensor-type		0, accel; 1, gyro; 2, compass;"
 					" 3, barometer; 4, ALS; 5, Proximity;"
 					" 6, terminal context;"
 					" 7, LPE;"
@@ -461,12 +479,13 @@ static void usage()
 					" 24, pedometer;"
 					" 25, magnetic heading;"
 					" 26, shaking;"
-					" 27, move detect"
-					" 28, stap\n");
-	printf("  -r, --date-rate          unit is Hz\n");
-	printf("  -d, --buffer-delay       unit is ms, i.e. 1/1000 second\n");
-	printf("  -p, --property-set       format: <property id>,<property value>\n");
-	printf("  -h, --help               show this help message \n");
+					" 27, move detect;"
+					" 28, stap;"
+					" 29, pan tilt zoom;\n");
+	printf("  -r, --date-rate		  unit is Hz\n");
+	printf("  -d, --buffer-delay	   unit is ms, i.e. 1/1000 second\n");
+	printf("  -p, --property-set	   format: <property id>,<property value>\n");
+	printf("  -h, --help			   show this help message \n");
 
 	exit(EXIT_SUCCESS);
 }
@@ -554,7 +573,7 @@ int main(int argc, char **argv)
 #undef LOG_TAG
 #define LOG_TAG "sensorhub_test"
 	LOGD("sensor_type is %d, data_rate is %d Hz, buffer_delay is %d ms\n",
-                                        sensor_type, data_rate, buffer_delay);
+										sensor_type, data_rate, buffer_delay);
 
 	handle = psh_open_session(sensor_type);
 
@@ -610,11 +629,11 @@ int main(int argc, char **argv)
 					p_tc_data->orien_xy,
 					p_tc_data->orien_z, size);
 		} else if (sensor_type == SENSOR_LPE) {
-                        struct lpe_phy_data *p_lpe_phy_data =
-                                        (struct lpe_phy_data *)buf;
-                        printf("get_single returns, lpe_msg is "
-                                "%u\n", p_lpe_phy_data->lpe_msg);
-                } else if (sensor_type == SENSOR_ACTIVITY) {
+						struct lpe_phy_data *p_lpe_phy_data =
+										(struct lpe_phy_data *)buf;
+						printf("get_single returns, lpe_msg is "
+								"%u\n", p_lpe_phy_data->lpe_msg);
+				} else if (sensor_type == SENSOR_ACTIVITY) {
 			printf("activity doesn't support get_single\n");
 		} else if (sensor_type == SENSOR_GS) {
 			struct gs_data *p_gs_data =
@@ -636,6 +655,11 @@ int main(int argc, char **argv)
 					(struct stap_data *)buf;
 			printf("get_single returns, stap is %d\n",
 					p_stap_data->stap);
+		} else if (sensor_type == SENSOR_PAN_TILT_ZOOM) {
+			struct ptz_data *p_ptz_data =
+					(struct ptz_data *)buf;
+			printf("get_single returns, ptz is %d %d\n",
+					p_ptz_data->cls_name, p_ptz_data->angle);
 		} else if (sensor_type == SENSOR_ROTATION_VECTOR) {
 			struct rotation_vector_data *p_rotation_vector_data =
 					(struct rotation_vector_data *)buf;
@@ -758,6 +782,8 @@ int main(int argc, char **argv)
 			dump_md_data(fd);
 		else if (sensor_type == SENSOR_STAP)
 			dump_stap_data(fd);
+		else if (sensor_type == SENSOR_PAN_TILT_ZOOM)
+			dump_ptz_data(fd);
 	}
 //	sleep(200);
 
