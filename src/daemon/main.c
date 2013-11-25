@@ -755,8 +755,13 @@ static void get_single(sensor_state_t *p_sensor_state,
 
 	/* send CMD_GET_SINGLE to sysfs control node */
 	p_session_state->get_single = 1;
-	send_control_cmd(0, cmd_type_to_cmd_id[CMD_GET_SINGLE],
+
+	if (strncmp(p_sensor_state->name, "BIST", SNR_NAME_MAX_LEN) == 0) {
+		send_control_cmd(0, 7, 0, 0, 0, 0);
+	} else {
+		send_control_cmd(0, cmd_type_to_cmd_id[CMD_GET_SINGLE],
 			p_sensor_state->sensor_id, 0, 0, 0);
+	}
 }
 
 static void get_calibration(sensor_state_t *p_sensor_state,
