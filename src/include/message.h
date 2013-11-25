@@ -37,7 +37,13 @@ struct sensor_name {
         char name[SNR_NAME_MAX_LEN + 1];
 };
 
-struct sensor_name sensor_type_to_name_str[SENSOR_MAX] = {{"ACCEL"}, {"GYRO"}, {"COMPS"}, {"BARO"}, {"ALS_P"}, {"PS_P"}, {"TERMC"}, {"LPE_P"}, {"ACC1"}, {"GYRO1"}, {"COMP1"}, {"ALS1"}, {"PS1"}, {"BARO1"}, {"PHYAC"}, {"GSSPT"}, {"GSFLK"}, {"RVECT"}, {"GRAVI"}, {"LACCL"}, {"ORIEN"}, {"COMPC"}, {"GYROC"}, {"9DOF"}, {"PEDOM"}, {"MAGHD"}, {"SHAKI"}, {"MOVDT"}, {"STAP"}, {"PTZ"}, {"LTVTL"}, {"BIST"}, {"EVENT"}};
+struct sensor_name sensor_type_to_name_str[SENSOR_MAX] = {
+	{"ACCEL"}, {"GYRO"}, {"COMPS"}, {"BARO"}, {"ALS_P"}, {"PS_P"}, {"TERMC"}, {"LPE_P"},
+	{"ACC1"}, {"GYRO1"}, {"COMP1"}, {"ALS1"}, {"PS1"}, {"BARO1"}, {"PHYAC"}, {"GSSPT"},
+	{"GSFLK"}, {"RVECT"}, {"GRAVI"}, {"LACCL"}, {"ORIEN"}, {"COMPC"}, {"GYROC"}, {"9DOF"},
+	{"PEDOM"}, {"MAGHD"}, {"SHAKI"}, {"MOVDT"}, {"STAP"}, {"PTZ"}, {"LTVTL"}, {"DVPOS"},
+	{"BIST"}, {"EVENT"}
+};
 
 typedef unsigned int session_id_t;
 

@@ -40,6 +40,7 @@ typedef enum {
 	SENSOR_STAP,
 	SENSOR_PAN_TILT_ZOOM,
 	SENSOR_LIFT_VERTICAL,
+	SENSOR_DEVICE_POSITION,
 
 	SENSOR_BIST,
 
@@ -328,6 +329,10 @@ struct md_data {
 
 struct lv_data {
 	short state;
+} __attribute__ ((packed));
+
+struct device_position_data {
+	short pos;
 } __attribute__ ((packed));
 
 #ifdef __cplusplus
