@@ -41,6 +41,9 @@ typedef enum {
 	SENSOR_PAN_TILT_ZOOM,
 	SENSOR_LIFT_VERTICAL,
 	SENSOR_DEVICE_POSITION,
+	SENSOR_STEPCOUNTER,
+	SENSOR_STEPDETECTOR,
+	SENSOR_SIGNIFICANT_MOTION,
 
 	SENSOR_BIST,
 
@@ -97,6 +100,15 @@ typedef enum {
 	PROP_STAP_CLSMASK,
 	PROP_STAP_LEVEL,
 	PROP_STAP_END = 120,
+
+	PROP_PEDOPLUS_START = 140,
+	PROP_PEDOPLUS_PIAMODE,
+	PROP_PEDOPLUS_SCOUNTERMODE,
+	PROP_PEDOPLUS_NSC,
+	PROP_PEDOPLUS_NPIA,
+	PROP_PEDOPLUS_ADMISSION,
+	PROP_PEDOPLUS_CLSMASK,
+	PROP_PEDOPLUS_END = 160,
 } property_type;
 
 typedef enum {
@@ -108,6 +120,11 @@ typedef enum {
 	PROP_ACT_MODE_NCYCLE,
 	PROP_ACT_MODE_ONCHANGE
 } property_act_mode;
+
+typedef enum {
+	PROP_PEDOPLUS_MODE_NONCHANGE,
+	PROP_PEDOPLUS_MODE_ONCHANGE,
+} property_pedoplus_mode;
 
 typedef enum {
 	STOP_WHEN_SCREEN_OFF = 0,
@@ -333,6 +350,18 @@ struct lv_data {
 
 struct device_position_data {
 	short pos;
+} __attribute__ ((packed));
+
+struct sm_data {
+	short state;
+} __attribute__ ((packed));
+
+struct stepcounter_data {
+	int num;
+} __attribute__ ((packed));
+
+struct stepdetector_data {
+	int state;
 } __attribute__ ((packed));
 
 #ifdef __cplusplus
