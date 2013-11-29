@@ -460,10 +460,47 @@ static void dump_ptz_data(int fd)
 	}
 }
 
+static void dump_lv_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct lv_data *p_lv_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_lv_data = (struct lv_data *)buf;
+		while (size > 0) {
+			printf("lift vertical data is %d\n", p_lv_data->state);
+			size = size - sizeof(struct lv_data);
+			p = p + sizeof(struct lv_data);
+			p_lv_data = (struct lv_data *)p;
+		}
+	}
+}
+
+static void dump_device_position_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct device_position_data *p_device_position_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_device_position_data = (struct device_position_data *)buf;
+		while (size > 0) {
+			printf("device position data is %d, size is %d \n",
+				p_device_position_data->pos, size);
+			size = size - sizeof(struct device_position_data);
+			p = p + sizeof(struct device_position_data);
+			p_device_position_data = (struct device_position_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
-	printf("  -c, --cmd-type		   0, get_single; 1 get_streaming \n");
+	printf("  -c, --cmd-type		0, get_single; 1 get_streaming \n");
 	printf("  -t, --sensor-type		0, accel; 1, gyro; 2, compass;"
 					" 3, barometer; 4, ALS; 5, Proximity;"
 					" 6, terminal context;"
@@ -481,11 +518,13 @@ static void usage()
 					" 26, shaking;"
 					" 27, move detect;"
 					" 28, stap;"
-					" 29, pan tilt zoom;\n");
-	printf("  -r, --date-rate		  unit is Hz\n");
-	printf("  -d, --buffer-delay	   unit is ms, i.e. 1/1000 second\n");
-	printf("  -p, --property-set	   format: <property id>,<property value>\n");
-	printf("  -h, --help			   show this help message \n");
+					" 29, pan tilt zoom;"
+					" 30, lift vertical;"
+					" 31, device position\n");
+	printf("  -r, --date-rate		unit is Hz\n");
+	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
+	printf("  -p, --property-set		format: <property id>,<property value>\n");
+	printf("  -h, --help			show this help message \n");
 
 	exit(EXIT_SUCCESS);
 }
@@ -650,6 +689,11 @@ int main(int argc, char **argv)
 					(struct shaking_data *)buf;
 			printf("get_single returns, shaking is %d\n",
 					p_shaking_data->shaking);
+		} else if (sensor_type == SENSOR_LIFT_VERTICAL) {
+			struct lv_data *p_lv_data =
+					(struct lv_data *)buf;
+			printf("get_single returns, lift vertical is %d\n",
+					p_lv_data->state);
 		} else if (sensor_type == SENSOR_STAP) {
 			struct stap_data *p_stap_data =
 					(struct stap_data *)buf;
@@ -660,6 +704,11 @@ int main(int argc, char **argv)
 					(struct ptz_data *)buf;
 			printf("get_single returns, ptz is %d %d\n",
 					p_ptz_data->cls_name, p_ptz_data->angle);
+		} else if (sensor_type == SENSOR_DEVICE_POSITION) {
+			struct device_position_data *p_device_position_data =
+					(struct device_position_data *)buf;
+			printf("get_single returns, device position is %d\n",
+					p_device_position_data->pos);
 		} else if (sensor_type == SENSOR_ROTATION_VECTOR) {
 			struct rotation_vector_data *p_rotation_vector_data =
 					(struct rotation_vector_data *)buf;
@@ -784,6 +833,10 @@ int main(int argc, char **argv)
 			dump_stap_data(fd);
 		else if (sensor_type == SENSOR_PAN_TILT_ZOOM)
 			dump_ptz_data(fd);
+		else if (sensor_type == SENSOR_LIFT_VERTICAL)
+			dump_lv_data(fd);
+		else if (sensor_type == SENSOR_DEVICE_POSITION)
+			dump_device_position_data(fd);
 	}
 //	sleep(200);
 
