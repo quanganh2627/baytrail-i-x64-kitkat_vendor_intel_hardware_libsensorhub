@@ -1563,8 +1563,6 @@ static void reset_sensorhub()
 		exit(EXIT_FAILURE);
 	}
 
-	closedir(dirp);
-
 	/* create sensorhubd Unix socket */
 	sockfd = android_get_control_socket(UNIX_SOCKET_PATH);
 	listen(sockfd, MAX_Q_LENGTH);
@@ -1592,6 +1590,8 @@ static void reset_sensorhub()
 			node_path, errno);
 		exit(EXIT_FAILURE);
 	}
+
+	closedir(dirp);
 }
 
 /* 1 release resources in sensor_list
