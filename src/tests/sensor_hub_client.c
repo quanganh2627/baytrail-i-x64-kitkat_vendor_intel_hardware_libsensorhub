@@ -497,6 +497,62 @@ static void dump_device_position_data(int fd)
 	}
 }
 
+static void dump_stepcounter_data(int fd)
+{
+        char buf[512];
+        int size = 0;
+        struct stepcounter_data *p_stepcounter_data;
+
+        while ((size = read(fd, buf, 512)) > 0) {
+                char *p = buf;
+                p_stepcounter_data = (struct stepcounter_data *)buf;
+                while (size > 0) {
+                        printf("step counter data is %d \n",
+                                p_stepcounter_data->num);
+                        size = size - sizeof(struct stepcounter_data);
+                        p = p + sizeof(struct stepcounter_data);
+                        p_stepcounter_data = (struct stepcounter_data *)p;
+                }
+        }
+}
+
+static void dump_stepdetector_data(int fd)
+{
+        char buf[512];
+        int size = 0;
+        struct stepdetector_data *p_stepdetector_data;
+
+        while ((size = read(fd, buf, 512)) > 0) {
+                char *p = buf;
+                p_stepdetector_data = (struct stepdetector_data *)buf;
+                while (size > 0) {
+                        printf("step detector data is %d \n",
+                                p_stepdetector_data->state);
+                        size = size - sizeof(struct stepdetector_data);
+                        p = p + sizeof(struct stepdetector_data);
+                        p_stepdetector_data = (struct stepdetector_data *)p;
+                }
+        }
+}
+
+static void dump_significantmotion_data(int fd)
+{
+        char buf[512];
+        int size = 0;
+        struct sm_data *p_sm_data;
+
+        while ((size = read(fd, buf, 512)) > 0) {
+                char *p = buf;
+                p_sm_data = (struct sm_data *)buf;
+                while (size > 0) {
+                        printf("significant motion data is %d \n",
+                                p_sm_data->state);
+                        size = size - sizeof(struct sm_data);
+                        p = p + sizeof(struct sm_data);
+                        p_sm_data = (struct sm_data *)p;
+                }
+        }
+}
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -520,7 +576,10 @@ static void usage()
 					" 28, stap;"
 					" 29, pan tilt zoom;"
 					" 30, lift vertical;"
-					" 31, device position\n");
+					" 31, device position;"
+					" 32, step counter;"
+					" 33, step detector;"
+					" 34, significant motion\n");
 	printf("  -r, --date-rate		unit is Hz\n");
 	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set		format: <property id>,<property value>\n");
@@ -699,6 +758,11 @@ int main(int argc, char **argv)
 					(struct stap_data *)buf;
 			printf("get_single returns, stap is %d\n",
 					p_stap_data->stap);
+		} else if (sensor_type == SENSOR_SIGNIFICANT_MOTION) {
+			struct sm_data *p_sm_data =
+					(struct sm_data *)buf;
+			printf("get_single returns, significant motion is %d\n",
+					p_sm_data->state);
 		} else if (sensor_type == SENSOR_PAN_TILT_ZOOM) {
 			struct ptz_data *p_ptz_data =
 					(struct ptz_data *)buf;
@@ -763,7 +827,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if (sensor_type == SENSOR_PEDOMETER)
+		if (sensor_type == SENSOR_PEDOMETER || sensor_type == SENSOR_STEPCOUNTER || sensor_type == SENSOR_STEPDETECTOR)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 2);
 		else if (sensor_type == SENSOR_PROXIMITY)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 1);
@@ -837,6 +901,12 @@ int main(int argc, char **argv)
 			dump_lv_data(fd);
 		else if (sensor_type == SENSOR_DEVICE_POSITION)
 			dump_device_position_data(fd);
+		else if (sensor_type == SENSOR_STEPCOUNTER)
+			dump_stepcounter_data(fd);
+		else if (sensor_type == SENSOR_STEPDETECTOR)
+			dump_stepdetector_data(fd);
+		else if (sensor_type == SENSOR_SIGNIFICANT_MOTION)
+			dump_significantmotion_data(fd);
 	}
 //	sleep(200);
 

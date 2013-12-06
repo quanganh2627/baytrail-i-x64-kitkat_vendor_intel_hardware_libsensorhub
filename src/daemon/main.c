@@ -1520,7 +1520,7 @@ static void reset_sensorhub()
 		}
 
 		if ((strstr(magic_string, "psh") != NULL)
-			|| (strstr(magic_string, "SMO91D0:00") != NULL)) {
+			|| (strstr(magic_string, "SMO91D0") != NULL)) {
 			platform = BAYTRAIL;
 			found = 1;
 			break;
