@@ -44,6 +44,10 @@ typedef enum {
 	SENSOR_STEPCOUNTER,
 	SENSOR_STEPDETECTOR,
 	SENSOR_SIGNIFICANT_MOTION,
+	SENSOR_GAME_ROTATION_VECTOR,
+	SENSOR_GEOMAGNETIC_ROTATION_VECTOR,
+	SENSOR_6DOFAG,
+	SENSOR_6DOFAM,
 
 	SENSOR_BIST,
 
@@ -259,6 +263,20 @@ struct rotation_vector_data {
 	int w;
 } __attribute__ ((packed));
 
+struct game_rotation_vector_data {
+	int x;
+	int y;
+	int z;
+	int w;
+} __attribute__ ((packed));
+
+struct geomagnetic_rotation_vector_data {
+	int x;
+	int y;
+	int z;
+	int w;
+} __attribute__ ((packed));
+
 struct gravity_data {
 	int x;
 	int y;
@@ -320,6 +338,14 @@ struct event_notification_data {
 
 struct ndof_data {
 	int	m[9];
+} __attribute__ ((packed));
+
+struct ndofag_data {
+	int     m[9];
+} __attribute__ ((packed));
+
+struct ndofam_data {
+	int     m[9];
 } __attribute__ ((packed));
 
 struct pedometer_data {
