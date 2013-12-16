@@ -35,17 +35,11 @@
 #define BYT_FW "/system/etc/firmware/psh_bk.bin"
 #define FWUPDATE_SCRIPT "/system/bin/fwupdate_script.sh "
 
-#define WAKE_NODE "/sys/power/wait_for_fb_wake"
-#define SLEEP_NODE "/sys/power/wait_for_fb_sleep"
-
-static const char *WAKE_LOCK_ID = "Sensorhubd";
-
 #define IA_BIT_CFG_AS_WAKEUP_SRC ((unsigned short)(0x1 << 0))
 
 /* The Unix socket file descriptor */
-static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, wakefd = -1, sleepfd = -1, notifyfd = -1, fwversionfd = -1;
+static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, fwversionfd = -1;
 
-static int screen_state;
 static int enable_debug_data_rate = 0;
 
 #define COMPASS_CALIBRATION_FILE "/data/compass.conf"
@@ -1472,16 +1466,6 @@ static void reset_sensorhub()
 		datasizefd = -1;
 	}
 
-	if (wakefd != -1) {
-		close(wakefd);
-		wakefd = -1;
-	}
-
-	if (sleepfd != -1) {
-		close(sleepfd);
-		sleepfd = -1;
-	}
-
 	if (fwversionfd != -1) {
 		close(fwversionfd);
 		fwversionfd = -1;
@@ -1566,21 +1550,6 @@ static void reset_sensorhub()
 	/* create sensorhubd Unix socket */
 	sockfd = android_get_control_socket(UNIX_SOCKET_PATH);
 	listen(sockfd, MAX_Q_LENGTH);
-
-	/* open wakeup and sleep sysfs node */
-	wakefd = open(WAKE_NODE, O_RDONLY, 0);
-	if (wakefd == -1) {
-		LOGE("open %s failed, errno is %d\n",
-				WAKE_NODE, errno);
-		exit(EXIT_FAILURE);
-	}
-
-	sleepfd = open(SLEEP_NODE, O_RDONLY, 0);
-	if (sleepfd == -1) {
-		LOGE("open %s failed, errno is %d\n",
-			SLEEP_NODE, errno);
-		exit(EXIT_FAILURE);
-	}
 
 	/* open fwversion node */
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/fw_version", entry->d_name);
@@ -2123,127 +2092,13 @@ static void remove_session_by_fd(int fd)
         }
 }
 
-static void *screen_state_thread(void *cookie)
-{
-	int fd, err;
-	char buf;
-	pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-	while(1) {
-		fd = open(SLEEP_NODE, O_RDONLY, 0);
-		do {
-			err = read(fd, &buf, 1);
-			log_message(DEBUG,"wait for sleep err: %d, errno: %d\n", err, errno);
-		} while (err < 0 && errno == EINTR);
-
-		pthread_mutex_lock(&update_mutex);
-		screen_state = 0;
-		pthread_mutex_unlock(&update_mutex);
-
-		write(notifyfd, "0", 1);
-
-		close(fd);
-
-		fd = open(WAKE_NODE, O_RDONLY, 0);
-		do {
-			err = read(fd, &buf, 1);
-			log_message(DEBUG,"wait for wake err: %d, errno: %d\n", err, errno);
-		} while (err < 0 && errno == EINTR);
-
-		pthread_mutex_lock(&update_mutex);
-		screen_state = 1;
-		pthread_mutex_unlock(&update_mutex);
-
-		write(notifyfd, "0", 1);
-
-		close(fd);
-	}
-	return NULL;
-}
-
-#if 0
-void handle_screen_state_change(void)
-{
-	int i;
-	session_state_t *p;
-
-	if (screen_state == 0) {
-		for (i = 0; i < SENSOR_BIST; i++) {
-			/* calibration is not stopped */
-			if (i == SENSOR_CALIBRATION_COMP ||
-				i == SENSOR_CALIBRATION_GYRO)
-				continue;
-
-			p = sensor_list[i].list;
-
-			while (p != NULL) {
-				if ((p->state == ACTIVE)) {
-					stop_streaming(i, p);
-					p->state = NEED_RESUME;
-				}
-				p = p->next;
-			}
-		}
-	} else if (screen_state == 1) {
-		for (i = 0; i < SENSOR_BIST; i++) {
-			/* calibration is not stopped */
-			if (i == SENSOR_CALIBRATION_COMP ||
-				i == SENSOR_CALIBRATION_GYRO)
-				continue;
-
-			p = sensor_list[i].list;
-
-			while (p != NULL) {
-				if (p->state == NEED_RESUME) {
-					start_streaming(i, p, p->data_rate, p->buffer_delay, 0);
-				}
-				p = p->next;
-			}
-		}
-	}
-}
-#endif
-
-static void handle_no_stop_no_report()
-{
-	int i;
-	int value;
-	session_state_t *p;
-
-	for (i = 0; i < current_sensor_index; i ++) {
-		if (strncmp(sensor_list[i].name, "COMPC", SNR_NAME_MAX_LEN) == 0 || strncmp(sensor_list[i].name, "GYROC", SNR_NAME_MAX_LEN) == 0)
-			continue;
-
-		p = sensor_list[i].list;
-
-		while (p != NULL) {
-			if ((p->state == ALWAYS_ON) && (p->flag == 1)) {
-				//TODO: send set_property to psh fw
-				if (i == SENSOR_PEDOMETER) {
-					if (screen_state == 0) {
-						value = 1;
-						send_set_property(&sensor_list[i], PROP_STOP_REPORTING, 4, (unsigned char *)&value);
-					} else {
-						value = 0;
-						send_set_property(&sensor_list[i], PROP_STOP_REPORTING, 4, (unsigned char *)&value);
-					}
-				}
-			}
-			p = p->next;
-		}
-
-	}
-}
-
 /* 1 create data thread
    2 wait and handle the request from client in main thread */
 static void start_sensorhubd()
 {
 	fd_set listen_fds, read_fds;
 	int maxfd;
-	int notifyfds[2];
 	int ret;
-	pthread_t t;
 
 	/* two fd_set for I/O multiplexing */
 	FD_ZERO(&listen_fds);
@@ -2254,21 +2109,6 @@ static void start_sensorhubd()
 	FD_SET(sockfd, &listen_fds);
 	maxfd = sockfd;
 
-	/* add notifyfds[0] to listen_fds */
-	ret = pipe(notifyfds);
-	if (ret < 0) {
-		LOGE("sensorhubd failed to create pipe \n");
-		exit(EXIT_FAILURE);
-	}
-
-	notifyfd = notifyfds[1];
-
-	FD_SET(notifyfds[0], &listen_fds);
-	if (notifyfds[0] > maxfd)
-		maxfd = notifyfds[0];
-
-	pthread_create(&t, NULL, screen_state_thread, NULL);
-
 	/* get data from data node and dispatch it to clients, begin */
 	fd_set datasize_fds;
 	FD_ZERO(&datasize_fds);
@@ -2276,9 +2116,6 @@ static void start_sensorhubd()
 	if (datasizefd > maxfd)
 		maxfd = datasizefd;
 	/* get data from data node and dispatch it to clients, end */
-
-
-	acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
 	while (1) {
 		read_fds = listen_fds;
@@ -2293,7 +2130,6 @@ static void start_sensorhubd()
 				LOGE("sensorhubd socket "
 					"select() failed. errno "
 					"is %d\n", errno);
-				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -2308,7 +2144,6 @@ static void start_sensorhubd()
 			if (clientfd == -1) {
 				LOGE("sensorhubd socket "
 					"accept() failed.\n");
-				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			} else {
 				LOGI("new connection from client\n");
@@ -2325,28 +2160,6 @@ static void start_sensorhubd()
 			dispatch_data();
 		}
 		/* get data from data node and dispatch it to clients, end */
-
-		/* handle wake/sleep notification, begin */
-		if (FD_ISSET(notifyfds[0], &read_fds)) {
-			char buf[20];
-			int ret;
-			ret = read(notifyfds[0], buf, 20);
-			if (ret > 0)
-				log_message(DEBUG, "Get notification,buf is %s, screen state is %d \n", buf, screen_state);
-
-			// make sure sensor start/stop is not interrupted by S3 suspend
-			if (screen_state == 1)
-				acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
-
-//			handle_screen_state_change();
-			handle_no_stop_no_report();
-			FD_CLR(notifyfds[0], &read_fds);
-
-			if (screen_state == 0)
-				release_wake_lock(WAKE_LOCK_ID);
-		}
-
-		/* handle wake/sleep notification, end */
 
 		/* handle request from clients */
 		int i;
