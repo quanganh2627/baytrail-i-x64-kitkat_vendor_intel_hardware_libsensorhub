@@ -50,7 +50,7 @@ typedef enum {
 	SENSOR_6DOFAM,
 	SENSOR_LIFT_LOOK,
 	SENSOR_DTWGS,
-	SENSOR_GSPX,
+	SENSOR_GESTURE_HMM,
 
 	SENSOR_BIST,
 
@@ -244,10 +244,10 @@ struct gs_data {
 	short sample[0];
 } __attribute__ ((packed));
 
-struct gspx_data {
-	short proximity;
+struct gesture_hmm_data {
+	short prox_gesture; //proximity if not use context arbiter; gesture if use context arbiter
 	unsigned short size; //unit is byte
-	short sample[0];
+	short sample[900];
 } __attribute__ ((packed));
 
 struct ps_phy_data {
