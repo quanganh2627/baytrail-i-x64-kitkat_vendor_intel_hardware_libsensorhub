@@ -279,6 +279,52 @@ static void dump_rotation_vector_data(int fd)
 	}
 }
 
+
+static void dump_game_rotation_vector_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct game_rotation_vector_data *p_game_rotation_vector_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_game_rotation_vector_data = (struct game_rotation_vector_data *)buf;
+		while (size > 0) {
+			printf("game rotation vector data is (%d, %d, %d, %d), size"
+				" is %d \n", p_game_rotation_vector_data->x,
+				p_game_rotation_vector_data->y,
+				p_game_rotation_vector_data->z,
+				p_game_rotation_vector_data->w, size);
+			size = size - sizeof(struct game_rotation_vector_data);
+			p = p + sizeof(struct game_rotation_vector_data);
+			p_game_rotation_vector_data = (struct game_rotation_vector_data *)p;
+		}
+	}
+}
+
+
+static void dump_geomagnetic_rotation_vector_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct geomagnetic_rotation_vector_data *p_geomagnetic_rotation_vector_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_geomagnetic_rotation_vector_data = (struct geomagnetic_rotation_vector_data *)buf;
+		while (size > 0) {
+			printf("geomagnetic rotation vector data is (%d, %d, %d, %d), size"
+				" is %d \n", p_geomagnetic_rotation_vector_data->x,
+				p_geomagnetic_rotation_vector_data->y,
+				p_geomagnetic_rotation_vector_data->z,
+				p_geomagnetic_rotation_vector_data->w, size);
+			size = size - sizeof(struct geomagnetic_rotation_vector_data);
+			p = p + sizeof(struct geomagnetic_rotation_vector_data);
+			p_geomagnetic_rotation_vector_data = (struct geomagnetic_rotation_vector_data *)p;
+		}
+	}
+}
+
 static void dump_gravity_data(int fd)
 {
 	char buf[512];
@@ -363,6 +409,52 @@ static void dump_9dof_data(int fd)
 		}
 	}
 	printf("dump_9dof_data 2 \n");
+}
+
+static void dump_6dofag_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct ndofag_data *p_ndofag_data;
+
+	printf("dump_6dofag_data 1 \n");
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_ndofag_data = (struct ndofag_data *)buf;
+		while (size > 0) {
+			printf("6dofag data is (%d, %d, %d, %d, %d, %d, %d, %d, %d), size is %d \n",
+				p_ndofag_data->m[0], p_ndofag_data->m[1], p_ndofag_data->m[2], p_ndofag_data->m[3],
+				p_ndofag_data->m[4], p_ndofag_data->m[5], p_ndofag_data->m[6], p_ndofag_data->m[7],
+				p_ndofag_data->m[8], size);
+			size = size - sizeof(struct ndofag_data);
+			p = p + sizeof(struct ndofag_data);
+			p_ndofag_data = (struct ndofag_data *)p;
+		}
+	}
+	printf("dump_6dofag_data 2 \n");
+}
+
+static void dump_6dofam_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct ndofam_data *p_ndofam_data;
+
+	printf("dump_6dofam_data 1 \n");
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_ndofam_data = (struct ndofam_data *)buf;
+		while (size > 0) {
+			printf("6dofam data is (%d, %d, %d, %d, %d, %d, %d, %d, %d), size is %d \n",
+				p_ndofam_data->m[0], p_ndofam_data->m[1], p_ndofam_data->m[2], p_ndofam_data->m[3],
+				p_ndofam_data->m[4], p_ndofam_data->m[5], p_ndofam_data->m[6], p_ndofam_data->m[7],
+				p_ndofam_data->m[8], size);
+			size = size - sizeof(struct ndofam_data);
+			p = p + sizeof(struct ndofam_data);
+			p_ndofam_data = (struct ndofam_data *)p;
+		}
+	}
+	printf("dump_6dofam_data 2 \n");
 }
 
 static void dump_pedometer_data(int fd)
@@ -579,7 +671,11 @@ static void usage()
 					" 31, device position;"
 					" 32, step counter;"
 					" 33, step detector;"
-					" 34, significant motion\n");
+					" 34, significant motion;"
+					" 35, game_rotation vector;"
+					" 36, geomagnetic_rotation vector;"
+					" 37, 6dofag;"
+					" 38, 6dofam\n");
 	printf("  -r, --date-rate		unit is Hz\n");
 	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set		format: <property id>,<property value>\n");
@@ -781,6 +877,22 @@ int main(int argc, char **argv)
 				p_rotation_vector_data->y,
 				p_rotation_vector_data->z,
 				p_rotation_vector_data->w);
+		} else if (sensor_type == SENSOR_GAME_ROTATION_VECTOR) {
+			struct game_rotation_vector_data *p_game_rotation_vector_data =
+					(struct game_rotation_vector_data *)buf;
+			printf("get_single returns, game rotation vector is (%d, %d,"
+				" %d, %d)\n", p_game_rotation_vector_data->x,
+				p_game_rotation_vector_data->y,
+				p_game_rotation_vector_data->z,
+				p_game_rotation_vector_data->w);
+		} else if (sensor_type == SENSOR_GEOMAGNETIC_ROTATION_VECTOR) {
+			struct geomagnetic_rotation_vector_data *p_geomagnetic_rotation_vector_data =
+					(struct geomagnetic_rotation_vector_data *)buf;
+			printf("get_single returns, geomagnetic rotation vector is (%d, %d,"
+				" %d, %d)\n", p_geomagnetic_rotation_vector_data->x,
+				p_geomagnetic_rotation_vector_data->y,
+				p_geomagnetic_rotation_vector_data->z,
+				p_geomagnetic_rotation_vector_data->w);
 		} else if (sensor_type == SENSOR_GRAVITY) {
 			struct gravity_data *p_gravity_data =
 					(struct gravity_data *)buf;
@@ -877,6 +989,10 @@ int main(int argc, char **argv)
 			dump_gesture_flick_data(fd);
 		else if (sensor_type == SENSOR_ROTATION_VECTOR)
 			dump_rotation_vector_data(fd);
+		else if (sensor_type == SENSOR_GAME_ROTATION_VECTOR)
+			dump_game_rotation_vector_data(fd);
+		else if (sensor_type == SENSOR_GEOMAGNETIC_ROTATION_VECTOR)
+			dump_geomagnetic_rotation_vector_data(fd);
 		else if (sensor_type == SENSOR_GRAVITY)
 			dump_gravity_data(fd);
 		else if (sensor_type == SENSOR_LINEAR_ACCEL)
@@ -885,6 +1001,10 @@ int main(int argc, char **argv)
 			dump_orientation_data(fd);
 		else if (sensor_type == SENSOR_9DOF)
 			dump_9dof_data(fd);
+		else if (sensor_type == SENSOR_6DOFAG)
+			dump_6dofag_data(fd);
+		else if (sensor_type == SENSOR_6DOFAM)
+			dump_6dofam_data(fd);
 		else if (sensor_type == SENSOR_PEDOMETER)
 			dump_pedometer_data(fd);
 		else if (sensor_type == SENSOR_MAG_HEADING)
