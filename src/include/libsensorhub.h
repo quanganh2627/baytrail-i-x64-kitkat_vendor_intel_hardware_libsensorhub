@@ -48,6 +48,8 @@ typedef enum {
 	SENSOR_GEOMAGNETIC_ROTATION_VECTOR,
 	SENSOR_6DOFAG,
 	SENSOR_6DOFAM,
+	SENSOR_LIFT_LOOK,
+	SENSOR_DTWGS,
 
 	SENSOR_BIST,
 
@@ -104,6 +106,12 @@ typedef enum {
 	PROP_STAP_CLSMASK,
 	PROP_STAP_LEVEL,
 	PROP_STAP_END = 120,
+
+	PROP_DTWGSM_START = 120,
+	PROP_DTWGSM_LEVEL,
+	PROP_DTWGSM_DST,
+	PROP_DTWGSM_TEMPLATE,
+	PROP_DTWGSM_END = 140,
 
 	PROP_PEDOPLUS_START = 140,
 	PROP_PEDOPLUS_PIAMODE,
@@ -388,6 +396,15 @@ struct stepcounter_data {
 
 struct stepdetector_data {
 	int state;
+} __attribute__ ((packed));
+
+struct lift_look_data {
+	short liftlook;
+} __attribute__ ((packed));
+
+struct dtwgs_data {
+	short gsnum;
+	int score;
 } __attribute__ ((packed));
 
 #ifdef __cplusplus

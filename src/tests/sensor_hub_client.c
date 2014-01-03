@@ -645,6 +645,44 @@ static void dump_significantmotion_data(int fd)
                 }
         }
 }
+
+static void dump_lift_look_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct lift_look_data *p_lift_look_data;
+
+        while ((size = read(fd, buf, 512)) > 0) {
+                char *p = buf;
+		p_lift_look_data = (struct lift_look_data *)buf;
+		while (size > 0) {
+			printf("lift&look data is %d, size is %d \n",
+				p_lift_look_data->liftlook, size);
+			size = size - sizeof(struct lift_look_data);
+			p = p + sizeof(struct lift_look_data);
+			p_lift_look_data = (struct lift_look_data *)p;
+		}
+	}
+}
+
+static void dump_dtwgs_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct dtwgs_data *p_dtwgs_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_dtwgs_data = (struct dtwgs_data *)buf;
+		while (size > 0) {
+			printf("dtwgs data is %d, score is %d, size is %d \n",
+				p_dtwgs_data->gsnum, p_dtwgs_data->score, size);
+			size = size - sizeof(struct dtwgs_data);
+			p_dtwgs_data = (struct dtwgs_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -675,7 +713,9 @@ static void usage()
 					" 35, game_rotation vector;"
 					" 36, geomagnetic_rotation vector;"
 					" 37, 6dofag;"
-					" 38, 6dofam\n");
+					" 38, 6dofam;"
+					" 39, lift look;"
+					" 40, dtwgs\n");
 	printf("  -r, --date-rate		unit is Hz\n");
 	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set		format: <property id>,<property value>\n");
@@ -869,6 +909,17 @@ int main(int argc, char **argv)
 					(struct device_position_data *)buf;
 			printf("get_single returns, device position is %d\n",
 					p_device_position_data->pos);
+		} else if (sensor_type == SENSOR_LIFT_LOOK) {
+			struct lift_look_data *p_lift_look_data =
+					(struct lift_look_data *)buf;
+			printf("get_single returns, lift look is %d\n",
+					p_lift_look_data->liftlook);
+		} else if (sensor_type == SENSOR_DTWGS) {
+			struct dtwgs_data *p_dtwgs_data =
+					(struct dtwgs_data *)buf;
+			printf("get_single returns, dtwgs is (%d %d)\n",
+					p_dtwgs_data->gsnum,
+					p_dtwgs_data->score);
 		} else if (sensor_type == SENSOR_ROTATION_VECTOR) {
 			struct rotation_vector_data *p_rotation_vector_data =
 					(struct rotation_vector_data *)buf;
@@ -1027,6 +1078,10 @@ int main(int argc, char **argv)
 			dump_stepdetector_data(fd);
 		else if (sensor_type == SENSOR_SIGNIFICANT_MOTION)
 			dump_significantmotion_data(fd);
+		else if (sensor_type == SENSOR_LIFT_LOOK)
+			dump_lift_look_data(fd);
+		else if (sensor_type == SENSOR_DTWGS)
+			dump_dtwgs_data(fd);
 	}
 //	sleep(200);
 
