@@ -1835,9 +1835,17 @@ fail:
 
 	if (param->calibrated == SUBCMD_CALIBRATION_TRUE) {
 		param->sub_cmd = SUBCMD_CALIBRATION_SET;
-		set_calibration_status(p_sensor_state, CALIBRATION_DONE, param);
+		set_calibration_status(p_sensor_state, CALIBRATION_DONE | CALIBRATION_NEED_STORE, param);
 	} else {
+		// SUBCMD_CALIBRATION_FALSE
+		struct cmd_calibration_param param_temp;
+
 		log_message(DEBUG, "Get calibration message, but calibrated not done.\n");
+		memset(&param_temp, 0, sizeof(struct cmd_calibration_param));
+                /* clear the parameter file */
+		store_calibration_to_file(p_sensor_state, &param_temp);
+		/* clear CALIBRATION_DONE */
+		p_sensor_state->calibration_status &= ~CALIBRATION_DONE;
 	}
 }
 
