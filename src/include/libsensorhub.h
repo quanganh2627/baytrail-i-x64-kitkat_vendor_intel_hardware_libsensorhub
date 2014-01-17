@@ -50,6 +50,7 @@ typedef enum {
 	SENSOR_6DOFAM,
 	SENSOR_LIFT_LOOK,
 	SENSOR_DTWGS,
+	SENSOR_GSPX,
 
 	SENSOR_BIST,
 
@@ -239,6 +240,12 @@ struct phy_activity_data {
 } __attribute__ ((packed));
 
 struct gs_data {
+	unsigned short size; //unit is byte
+	short sample[0];
+} __attribute__ ((packed));
+
+struct gspx_data {
+	short proximity;
 	unsigned short size; //unit is byte
 	short sample[0];
 } __attribute__ ((packed));

@@ -173,6 +173,27 @@ static void dump_gs_data(int fd)
 
 }
 
+static void dump_gspx_data(int fd)
+{
+	char buf[4096];
+	int size = 0;
+	struct gspx_data *p_gspx_data;
+
+	while ((size = read(fd, buf, 4096)) > 0) {
+		char *p = buf;
+		p_gspx_data = (struct gspx_data *)buf;
+
+		while (size > 0) {
+			printf("gspx data size is %d, proximity is %d\n",
+					p_gspx_data->size, p_gspx_data->proximity);
+			size = size - (sizeof(struct gspx_data) + p_gspx_data->size);
+			p = p + sizeof(struct gspx_data) + p_gspx_data->size;
+			p_gspx_data = (struct gspx_data *)p;
+		}
+	}
+
+}
+
 static void dump_activity_data(int fd)
 {
 	char buf[512];
@@ -715,7 +736,8 @@ static void usage()
 					" 37, 6dofag;"
 					" 38, 6dofam;"
 					" 39, lift look;"
-					" 40, dtwgs\n");
+					" 40, dtwgs;"
+					" 41, gesture spotting with proximity\n");
 	printf("  -r, --date-rate		unit is Hz\n");
 	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set		format: <property id>,<property value>\n");
@@ -874,6 +896,11 @@ int main(int argc, char **argv)
 					(struct gs_data *)buf;
 			printf("get_single returns, size is %d\n",
 					p_gs_data->size);
+		} else if (sensor_type == SENSOR_GSPX) {
+			struct gspx_data *p_gspx_data =
+					(struct gspx_data *)buf;
+			printf("get_single returns, size is %d, proximity is %d\n",
+					p_gspx_data->size, p_gspx_data->proximity);
 		} else if (sensor_type == SENSOR_GESTURE_FLICK) {
 			struct gesture_flick_data *p_gesture_flick_data =
 					(struct gesture_flick_data *)buf;
@@ -1036,6 +1063,8 @@ int main(int argc, char **argv)
 			dump_activity_data(fd);
 		else if (sensor_type == SENSOR_GS)
 			dump_gs_data(fd);
+		else if (sensor_type == SENSOR_GSPX)
+			dump_gspx_data(fd);
 		else if (sensor_type == SENSOR_GESTURE_FLICK)
 			dump_gesture_flick_data(fd);
 		else if (sensor_type == SENSOR_ROTATION_VECTOR)
