@@ -6,6 +6,7 @@
 
 #include "../include/libsensorhub.h"
 #include "../include/bist.h"
+#include "../include/message.h"
 
 static void dump_accel_data(int fd)
 {
@@ -751,6 +752,19 @@ int parse_prop_set(char *opt, int *prop, int *val)
 	return -1;
 }
 
+int sensor_name_to_type(const char *name)
+{
+	int i;
+	for (i = 0; i < SENSOR_MAX; i++) {
+		if (strncmp(sensor_type_to_name_str[i].name,
+				name,
+				SNR_NAME_MAX_LEN) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 int main(int argc, char **argv)
 {
 	handle_t handle;
@@ -785,6 +799,9 @@ int main(int argc, char **argv)
 			break;
 		case 't':
 			sensor_type = strtod(optarg, NULL);
+			if (sensor_type <= 0 && strncmp(optarg, "0", 1) != 0) {
+				sensor_type = sensor_name_to_type(optarg);
+			}
 			break;
 		case 'r':
 			data_rate = strtod(optarg, NULL);
@@ -810,8 +827,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (cmd_type == -1 || (sensor_type == -1)
-			|| (cmd_type != 0 && cmd_type != 1)) {
+	if ((sensor_type == -1) || (cmd_type != 0 && cmd_type != 1)) {
 		usage();
 		return 0;
 	}
