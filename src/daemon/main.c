@@ -1341,7 +1341,8 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 			|| strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
-			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
 			if (strncmp(p_sensor_state->name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
 				ctx_activity_option_t activity_option;
 				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &activity_option) == -1) {
@@ -1391,8 +1392,23 @@ LOGI("STY prop_mode %d cycle %d duty %d", activity_option.prop_mode, activity_op
 				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &stepdetect_option) == -1)
 					return ERR_CMD_NOT_SUPPORT;
 				send_set_property(p_sensor_state, PROP_PEDOPLUS_ADMISSION, 4, (unsigned char *)&stepdetect_option.prop_admission);
+			} else if (strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
+				ctx_dtwgs_option_t dtwgs_option;
+				int dest = -1;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &dtwgs_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_DTWGSM_LEVEL, 4, (unsigned char *)&dtwgs_option.prop_level);
+				if ((dtwgs_option.prop_clsmask & 0x1) && dtwgs_option.prop_size1 > 0) {
+					dest = 0;
+					send_set_property(p_sensor_state, PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
+					send_set_property(p_sensor_state, PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size1, (unsigned char *)dtwgs_option.prop_temp1);
+				}
+				if ((dtwgs_option.prop_clsmask & 0x2) && dtwgs_option.prop_size2 > 0) {
+					dest = 1;
+					send_set_property(p_sensor_state, PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
+					send_set_property(p_sensor_state, PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size2, (unsigned char *)dtwgs_option.prop_temp2);
+				}
 			}
-
 		} else {
 #endif
 			send_set_property(p_sensor_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);	// property type, property size, property value
@@ -1453,7 +1469,8 @@ static void handle_message(int fd, char *message)
 			|| strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
-			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
 			void *handle;
 			handle = ctx_open_session(p_sensor_state->name);
 			if (handle == NULL) {
@@ -1712,7 +1729,8 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 			|| strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
-			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
 			void *out_data;
 			int out_size;
 			if (ctx_dispatch_data(p_session_state->handle, data, size, &out_data, &out_size) == 1)
@@ -2238,6 +2256,22 @@ static void remove_session_by_fd(int fd)
 				ctx_stepdetect_option_t stepdetect_option;
 				if (ctx_close_session(p_session_state->handle, &stepdetect_option) == 1) {
 					send_set_property(&sensor_list[i], PROP_PEDOPLUS_ADMISSION, 4, (unsigned char *)&stepdetect_option.prop_admission);
+				}
+			} else if (strncmp(sensor_list[i].name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
+				ctx_dtwgs_option_t dtwgs_option;
+				int dest = -1;
+				if (ctx_close_session(p_session_state->handle, &dtwgs_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_DTWGSM_LEVEL, 4, (unsigned char *)&dtwgs_option.prop_level);
+					if ((dtwgs_option.prop_clsmask & 0x1) && dtwgs_option.prop_size1 > 0) {
+						dest = 0;
+						send_set_property(&sensor_list[i], PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
+						send_set_property(&sensor_list[i], PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size1, (unsigned char *)dtwgs_option.prop_temp1);
+					}
+					if ((dtwgs_option.prop_clsmask & 0x2) && dtwgs_option.prop_size2 > 0) {
+						dest = 1;
+						send_set_property(&sensor_list[i], PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
+						send_set_property(&sensor_list[i], PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size2, (unsigned char *)dtwgs_option.prop_temp2);
+					}
 				}
 			}
 #endif
