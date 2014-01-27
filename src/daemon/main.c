@@ -24,6 +24,9 @@
 #include "../include/utils.h"
 #include "../include/message.h"
 #include "../include/bist.h"
+#ifdef ENABLE_CONTEXT_ARBITOR
+#include <libcontextarbitor.h>
+#endif
 
 #undef LOG_TAG
 #define LOG_TAG "Libsensorhub"
@@ -105,7 +108,7 @@ typedef struct session_state_t {
 	int buffer_delay;
 	unsigned char event_id;
 	};
-	int tail;
+	void *handle;
 	struct session_state_t *next;
 } session_state_t;
 
@@ -579,7 +582,6 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 	if (data_rate != 0) {
 		p_session_state->data_rate = data_rate;
 		p_session_state->buffer_delay = buffer_delay;
-		p_session_state->tail = 0;
 		if (flag == 0)
 			p_session_state->state = ACTIVE;
 		else if (flag == 1)
@@ -1259,8 +1261,8 @@ static int recalculate_data_rate(sensor_state_t *p_sensor_state, int data_rate)
 
 	freq_max = p_sensor_state->freq_max;
 
-	if (freq_max == -1)
-		return -1;
+//	if (freq_max == -1)
+//		return -1;
 
 	return data_rate;
 }
@@ -1331,7 +1333,72 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		else
 			return ERR_SESSION_NOT_EXIST;
 	} else if (cmd == CMD_SET_PROPERTY) {
-		send_set_property(p_sensor_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);
+#ifdef ENABLE_CONTEXT_ARBITOR
+		if (strncmp(p_sensor_state->name, "PHYAC", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "PEDOM", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "STAP", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSFLK", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+			if (strncmp(p_sensor_state->name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
+				ctx_activity_option_t activity_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &activity_option) == -1) {
+					return ERR_CMD_NOT_SUPPORT;
+				}
+LOGI("STY prop_mode %d cycle %d duty %d", activity_option.prop_mode, activity_option.prop_cycle_n & 0xFF, activity_option.prop_duty_m);
+				send_set_property(p_sensor_state, PROP_ACT_MODE, 4, (unsigned char *)&activity_option.prop_mode);
+				send_set_property(p_sensor_state, PROP_ACT_N, 4, (unsigned char *)&activity_option.prop_cycle_n);
+				send_set_property(p_sensor_state, PROP_ACT_DUTY_M, 4, (unsigned char *)&activity_option.prop_duty_m);
+				send_set_property(p_sensor_state, PROP_ACT_CLSMASK, 4, (unsigned char *)&activity_option.prop_clsmask);
+			} else if (strncmp(p_sensor_state->name, "PEDOM", SNR_NAME_MAX_LEN) == 0) {
+				ctx_pedometer_option_t pedometer_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &pedometer_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_PEDOMETER_MODE, 4, (unsigned char *)&pedometer_option.prop_mode);
+				send_set_property(p_sensor_state, PROP_PEDOMETER_N, 4, (unsigned char *)&pedometer_option.prop_cycle_n);
+			} else if (strncmp(p_sensor_state->name, "STAP", SNR_NAME_MAX_LEN) == 0) {
+				ctx_tapping_option_t tapping_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &tapping_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_STAP_CLSMASK, 4, (unsigned char *)&tapping_option.prop_clsmask);
+				send_set_property(p_sensor_state, PROP_STAP_LEVEL, 4, (unsigned char *)&tapping_option.prop_level);
+			} else if (strncmp(p_sensor_state->name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
+				ctx_gestureflick_option_t gestureflick_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &gestureflick_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_GFLICK_CLSMASK, 4, (unsigned char *)&gestureflick_option.prop_clsmask);
+				send_set_property(p_sensor_state, PROP_GFLICK_LEVEL, 4, (unsigned char *)&gestureflick_option.prop_level);
+			} else if (strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0) {
+				ctx_shaking_option_t shaking_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &shaking_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_SHAKING_SENSITIVITY, 4, (unsigned char *)&shaking_option.prop_sensitivity);
+			} else if (strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0) {
+				ctx_gesturehmm_option_t gesturehmm_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &gesturehmm_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				// no option set to psh_fw for gesture hmm
+			} else if (strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0) {
+				ctx_stepcount_option_t stepcount_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &stepcount_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_PEDOPLUS_SCOUNTERMODE, 4, (unsigned char *)&stepcount_option.prop_mode);
+				send_set_property(p_sensor_state, PROP_PEDOPLUS_NSC, 4, (unsigned char *)&stepcount_option.prop_cycle_n);
+			} else if (strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+				ctx_stepdetect_option_t stepdetect_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &stepdetect_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_PEDOPLUS_ADMISSION, 4, (unsigned char *)&stepdetect_option.prop_admission);
+			}
+
+		} else {
+#endif
+			send_set_property(p_sensor_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);	// property type, property size, property value
+#ifdef ENABLE_CONTEXT_ARBITOR
+		}
+#endif
 	}
 
 	return SUCCESS;
@@ -1376,6 +1443,26 @@ static void handle_message(int fd, char *message)
 		memset(p_session_state, 0, sizeof(session_state_t));
 		p_session_state->datafd = fd;
 		p_session_state->session_id = session_id;
+
+#ifdef ENABLE_CONTEXT_ARBITOR
+
+		if (strncmp(p_sensor_state->name, "PHYAC", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "PEDOM", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "STAP", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSFLK", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+			void *handle;
+			handle = ctx_open_session(p_sensor_state->name);
+			if (handle == NULL) {
+				free(p_session_state);
+				return;
+			}
+			p_session_state->handle = handle;
+		}
+#endif
 
 		if ((strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0) &&
 			p_sensor_state->list == NULL) {
@@ -1617,8 +1704,22 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 		if ((p_session_state->state != ACTIVE) && (p_session_state->state != ALWAYS_ON))
 			continue;
 
-		send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
-
+#ifdef ENABLE_CONTEXT_ARBITOR
+		if (strncmp(p_sensor_state->name, "PHYAC", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "PEDOM", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "STAP", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSFLK", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SHAKI", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+			void *out_data;
+			int out_size;
+			if (ctx_dispatch_data(p_session_state->handle, data, size, &out_data, &out_size) == 1)
+				send(p_session_state->datafd, out_data, out_size, MSG_NOSIGNAL|MSG_DONTWAIT);
+		} else
+#endif
+			send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
 	}
 }
 
@@ -2090,7 +2191,56 @@ static void remove_session_by_fd(int fd)
 				set_calibration_status(p_sensor_state, CALIBRATION_NEED_STORE, NULL);
 				get_calibration(p_sensor_state, NULL);
 			}
-
+#ifdef ENABLE_CONTEXT_ARBITOR
+			if (strncmp(sensor_list[i].name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
+				ctx_activity_option_t activity_option;
+				if (ctx_close_session(p_session_state->handle, &activity_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_ACT_MODE, 4, (unsigned char *)&activity_option.prop_mode);
+					send_set_property(&sensor_list[i], PROP_ACT_N, 4, (unsigned char *)&activity_option.prop_cycle_n);
+					send_set_property(&sensor_list[i], PROP_ACT_DUTY_M, 4, (unsigned char *)&activity_option.prop_duty_m);
+					send_set_property(&sensor_list[i], PROP_ACT_CLSMASK, 4, (unsigned char *)&activity_option.prop_clsmask);
+				}
+			} else if (strncmp(sensor_list[i].name, "PEDOM", SNR_NAME_MAX_LEN) == 0) {
+				ctx_pedometer_option_t pedometer_option;
+				if (ctx_close_session(p_session_state->handle, &pedometer_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_PEDOMETER_MODE, 4, (unsigned char *)&pedometer_option.prop_mode);
+					send_set_property(&sensor_list[i], PROP_PEDOMETER_N, 4, (unsigned char *)&pedometer_option.prop_cycle_n);
+				}
+			} else if (strncmp(sensor_list[i].name, "STAP", SNR_NAME_MAX_LEN) == 0) {
+				ctx_tapping_option_t tapping_option;
+				if(ctx_close_session(p_session_state->handle, &tapping_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_STAP_CLSMASK, 4, (unsigned char *)&tapping_option.prop_clsmask);
+					send_set_property(&sensor_list[i], PROP_STAP_LEVEL, 4, (unsigned char *)&tapping_option.prop_level);
+				}
+			}  else if (strncmp(sensor_list[i].name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
+				ctx_gestureflick_option_t gestureflick_option;
+				if (ctx_close_session(p_session_state->handle, &gestureflick_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_GFLICK_CLSMASK, 4, (unsigned char *)&gestureflick_option.prop_clsmask);
+					send_set_property(&sensor_list[i], PROP_GFLICK_LEVEL, 4, (unsigned char *)&gestureflick_option.prop_level);
+				}
+			} else if (strncmp(sensor_list[i].name, "SHAKI", SNR_NAME_MAX_LEN) == 0) {
+				ctx_shaking_option_t shaking_option;
+				if (ctx_close_session(p_session_state->handle, &shaking_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_SHAKING_SENSITIVITY, 4, (unsigned char *)&shaking_option.prop_sensitivity);
+				}
+			} else if (strncmp(sensor_list[i].name, "GSPX", SNR_NAME_MAX_LEN) == 0) {
+				ctx_gesturehmm_option_t gesturehmm_option;
+				if (ctx_close_session(p_session_state->handle, &gesturehmm_option) == 1) {
+					// no option need to be set to psh_fw for gesture hmm
+				}
+			} else if (strncmp(sensor_list[i].name, "SCOUN", SNR_NAME_MAX_LEN) == 0) {
+				ctx_stepcount_option_t stepcount_option;
+				if (ctx_close_session(p_session_state->handle, &stepcount_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_PEDOPLUS_SCOUNTERMODE, 4, (unsigned char *)&stepcount_option.prop_mode);
+					send_set_property(&sensor_list[i], PROP_PEDOPLUS_NSC, 4, (unsigned char *)&stepcount_option.prop_cycle_n);
+				}
+			} else if (strncmp(sensor_list[i].name, "SDET", SNR_NAME_MAX_LEN) == 0) {
+				ctx_stepdetect_option_t stepdetect_option;
+				if (ctx_close_session(p_session_state->handle, &stepdetect_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_PEDOPLUS_ADMISSION, 4, (unsigned char *)&stepdetect_option.prop_admission);
+				}
+			}
+#endif
 			log_message(DEBUG, "session with datafd %d, ctlfd %d "
 				"is removed \n", p_session_state->datafd,
 				p_session_state->ctlfd);
