@@ -239,6 +239,25 @@ static void dump_gesture_flick_data(int fd)
 	}
 }
 
+static void dump_gesture_eartouch_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct gesture_eartouch_data *p_gesture_eartouch_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_gesture_eartouch_data = (struct gesture_eartouch_data *)buf;
+		while (size > 0) {
+			printf("gesture eartouch data is %d, size is %d \n",
+				p_gesture_eartouch_data->eartouch, size);
+			size = size - sizeof(struct gesture_eartouch_data);
+			p = p + sizeof(struct gesture_eartouch_data);
+			p_gesture_eartouch_data = (struct gesture_eartouch_data *)p;
+		}
+	}
+}
+
 static void dump_shaking_data(int fd)
 {
 	char buf[512];
@@ -736,7 +755,8 @@ static void usage()
 					" 38, 6dofam;"
 					" 39, lift look;"
 					" 40, dtwgs;"
-					" 41, gesture hmm\n");
+					" 41, gesture hmm;"
+					" 42, gesture eartouch;\n");
 	printf("  -r, --date-rate		unit is Hz\n");
 	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set		format: <property id>,<property value>\n");
@@ -920,6 +940,11 @@ int main(int argc, char **argv)
 					(struct gesture_flick_data *)buf;
 			printf("get_single returns, flick is %d\n",
 					p_gesture_flick_data->flick);
+		} else if (sensor_type == SENSOR_GESTURE_EARTOUCH) {
+			struct gesture_eartouch_data *p_gesture_eartouch_data =
+					(struct gesture_eartouch_data *)buf;
+			printf("get_single returns, eartouch is %d\n",
+					p_gesture_eartouch_data->eartouch);
 		} else if (sensor_type == SENSOR_SHAKING) {
 			struct shaking_data *p_shaking_data =
 					(struct shaking_data *)buf;
@@ -1081,6 +1106,8 @@ int main(int argc, char **argv)
 			dump_gesture_hmm_data(fd);
 		else if (sensor_type == SENSOR_GESTURE_FLICK)
 			dump_gesture_flick_data(fd);
+		else if (sensor_type == SENSOR_GESTURE_EARTOUCH)
+			dump_gesture_eartouch_data(fd);
 		else if (sensor_type == SENSOR_ROTATION_VECTOR)
 			dump_rotation_vector_data(fd);
 		else if (sensor_type == SENSOR_GAME_ROTATION_VECTOR)

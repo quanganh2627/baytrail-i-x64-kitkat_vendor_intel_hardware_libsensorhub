@@ -1342,7 +1342,8 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0
-			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
+			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
 			if (strncmp(p_sensor_state->name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
 				ctx_activity_option_t activity_option;
 				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &activity_option) == -1) {
@@ -1408,6 +1409,11 @@ LOGI("STY prop_mode %d cycle %d duty %d", activity_option.prop_mode, activity_op
 					send_set_property(p_sensor_state, PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
 					send_set_property(p_sensor_state, PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size2, (unsigned char *)dtwgs_option.prop_temp2);
 				}
+			} else if (strncmp(p_sensor_state->name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
+				ctx_gesture_eartouch_option_t gesture_eartouch_option;
+				if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &gesture_eartouch_option) == -1)
+					return ERR_CMD_NOT_SUPPORT;
+				send_set_property(p_sensor_state, PROP_EARTOUCH_CLSMASK, 4, (unsigned char *)&gesture_eartouch_option.prop_clsmask);
 			}
 		} else {
 #endif
@@ -1470,7 +1476,8 @@ static void handle_message(int fd, char *message)
 			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0
-			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
+			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
 			void *handle;
 			handle = ctx_open_session(p_sensor_state->name);
 			if (handle == NULL) {
@@ -1730,7 +1737,8 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 			|| strncmp(p_sensor_state->name, "GSPX", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SCOUN", SNR_NAME_MAX_LEN) == 0
 			|| strncmp(p_sensor_state->name, "SDET", SNR_NAME_MAX_LEN) == 0
-			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
+			|| strncmp(p_sensor_state->name, "DTWGS", SNR_NAME_MAX_LEN) == 0
+			|| strncmp(p_sensor_state->name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
 			void *out_data;
 			int out_size;
 			if (ctx_dispatch_data(p_session_state->handle, data, size, &out_data, &out_size) == 1)
@@ -2230,7 +2238,7 @@ static void remove_session_by_fd(int fd)
 					send_set_property(&sensor_list[i], PROP_STAP_CLSMASK, 4, (unsigned char *)&tapping_option.prop_clsmask);
 					send_set_property(&sensor_list[i], PROP_STAP_LEVEL, 4, (unsigned char *)&tapping_option.prop_level);
 				}
-			}  else if (strncmp(sensor_list[i].name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
+			} else if (strncmp(sensor_list[i].name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
 				ctx_gestureflick_option_t gestureflick_option;
 				if (ctx_close_session(p_session_state->handle, &gestureflick_option) == 1) {
 					send_set_property(&sensor_list[i], PROP_GFLICK_CLSMASK, 4, (unsigned char *)&gestureflick_option.prop_clsmask);
@@ -2272,6 +2280,10 @@ static void remove_session_by_fd(int fd)
 						send_set_property(&sensor_list[i], PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
 						send_set_property(&sensor_list[i], PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size2, (unsigned char *)dtwgs_option.prop_temp2);
 					}
+			}  else if (strncmp(sensor_list[i].name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
+				ctx_gesture_eartouch_option_t gesture_eartouch_option;
+				if (ctx_close_session(p_session_state->handle, &gesture_eartouch_option) == 1) {
+					send_set_property(&sensor_list[i], PROP_EARTOUCH_CLSMASK, 4, (unsigned char *)&gesture_eartouch_option.prop_clsmask);
 				}
 			}
 #endif

@@ -51,6 +51,7 @@ typedef enum {
 	SENSOR_LIFT_LOOK,
 	SENSOR_DTWGS,
 	SENSOR_GESTURE_HMM,
+	SENSOR_GESTURE_EARTOUCH,
 
 	SENSOR_BIST,
 
@@ -122,6 +123,10 @@ typedef enum {
 	PROP_PEDOPLUS_ADMISSION,
 	PROP_PEDOPLUS_CLSMASK,
 	PROP_PEDOPLUS_END = 160,
+
+	PROP_EARTOUCH_START = 160,
+	PROP_EARTOUCH_CLSMASK,
+	PROP_EARTOUCH_END = 180,
 } property_type;
 
 typedef enum {
@@ -248,6 +253,10 @@ struct gesture_hmm_data {
 	short prox_gesture; //proximity if not use context arbiter; gesture if use context arbiter
 	unsigned short size; //unit is byte
 	short sample[900];
+} __attribute__ ((packed));
+
+struct gesture_eartouch_data {
+	short eartouch;
 } __attribute__ ((packed));
 
 struct ps_phy_data {
