@@ -725,42 +725,23 @@ static void dump_dtwgs_data(int fd)
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
-	printf("  -c, --cmd-type		0, get_single; 1 get_streaming \n");
-	printf("  -t, --sensor-type		0, accel; 1, gyro; 2, compass;"
-					" 3, barometer; 4, ALS; 5, Proximity;"
-					" 6, terminal context;"
-					" 7, LPE;"
-					" 14, physical activity;"
-					" 15, gesture spotting;"
-					" 16, gesture flick;"
-					" 17, rotation vector;"
-					" 18, gravity;"
-					" 19, linear acceleration;"
-					" 20, orientation;"
-					" 23, 9dof;"
-					" 24, pedometer;"
-					" 25, magnetic heading;"
-					" 26, shaking;"
-					" 27, move detect;"
-					" 28, stap;"
-					" 29, pan tilt zoom;"
-					" 30, lift vertical;"
-					" 31, device position;"
-					" 32, step counter;"
-					" 33, step detector;"
-					" 34, significant motion;"
-					" 35, game_rotation vector;"
-					" 36, geomagnetic_rotation vector;"
-					" 37, 6dofag;"
-					" 38, 6dofam;"
-					" 39, lift look;"
-					" 40, dtwgs;"
-					" 41, gesture hmm;"
-					" 42, gesture eartouch;\n");
-	printf("  -r, --date-rate		unit is Hz\n");
-	printf("  -d, --buffer-delay		unit is ms, i.e. 1/1000 second\n");
-	printf("  -p, --property-set		format: <property id>,<property value>\n");
-	printf("  -h, --help			show this help message \n");
+	printf("  -c, --cmd-type	0, get_single; 1 get_streaming \n");
+	printf("  -t, --sensor-type	ACCEL, accelerometer;        GYRO, gyroscope;                    COMPS, compass;\n"
+		"			BARO, barometer;             ALS_P, ALS;                         PS_P, Proximity;\n"
+		"			TERMC, terminal context;     LPE_P, LPE;                         PHYAC, physical activity;\n"
+		"			GSSPT, gesture spotting;     GSFLK, gesture flick;               RVECT, rotation vector;\n"
+		"			GRAVI, gravity;              LACCL, linear acceleration;         ORIEN, orientation;\n"
+		"			9DOF, 9dof;                  PEDOM, pedometer;                   MAGHD, magnetic heading;\n"
+		"			SHAKI, shaking;              MOVDT, move detect;                 STAP, stap;\n"
+		"			PTZ, pan tilt zoom;          LTVTL, lift vertical;               DVPOS, device position;\n"
+		"			SCOUN, step counter;         SDET, step detector;                SIGMT, significant motion;\n"
+		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
+		"			6DOFM, 6dofam;               LIFLK, lift look;                   DTWGS, dtwgs;\n"
+		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            BIST, BIST;\n");
+	printf("  -r, --date-rate	unit is Hz\n");
+	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
+	printf("  -p, --property-set	format: <property id>,<property value>\n");
+	printf("  -h, --help		show this help message \n");
 
 	exit(EXIT_SUCCESS);
 }
@@ -772,25 +753,12 @@ int parse_prop_set(char *opt, int *prop, int *val)
 	return -1;
 }
 
-int sensor_name_to_type(const char *name)
-{
-	int i;
-	for (i = 0; i < SENSOR_MAX; i++) {
-		if (strncmp(sensor_type_to_name_str[i].name,
-				name,
-				SNR_NAME_MAX_LEN) == 0) {
-			return i;
-		}
-	}
-	return -1;
-}
-
 int main(int argc, char **argv)
 {
 	handle_t handle;
 	error_t ret;
-	int fd, size = 0, cmd_type = -1, sensor_type = -1, data_rate = -1,
-							buffer_delay = -1;
+	int fd, size = 0, cmd_type = -1, data_rate = -1, buffer_delay = -1;
+	char *sensor_name = NULL;
 	int prop_ids[10];
 	int prop_vals[10];
 	int prop_count = 0;
@@ -818,10 +786,7 @@ int main(int argc, char **argv)
 			cmd_type = strtod(optarg, NULL);
 			break;
 		case 't':
-			sensor_type = strtod(optarg, NULL);
-			if (sensor_type <= 0 && strncmp(optarg, "0", 1) != 0) {
-				sensor_type = sensor_name_to_type(optarg);
-			}
+			sensor_name = strdup(optarg);
 			break;
 		case 'r':
 			data_rate = strtod(optarg, NULL);
@@ -847,7 +812,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if ((sensor_type == -1) || (cmd_type != 0 && cmd_type != 1)) {
+	if ((sensor_name == NULL) || (cmd_type != 0 && cmd_type != 1)) {
 		usage();
 		return 0;
 	}
@@ -857,15 +822,15 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	printf("cmd_type is %d, sensor_type is %d, data_rate is %d Hz, "
-			"buffer_delay is %d ms\n", cmd_type, sensor_type,
+	printf("cmd_type is %d, sensor_name is %s, data_rate is %d Hz, "
+			"buffer_delay is %d ms\n", cmd_type, sensor_name,
 						data_rate, buffer_delay);
 #undef LOG_TAG
 #define LOG_TAG "sensorhub_test"
-	LOGD("sensor_type is %d, data_rate is %d Hz, buffer_delay is %d ms\n",
-										sensor_type, data_rate, buffer_delay);
+	LOGD("sensor_name is %s, data_rate is %d Hz, buffer_delay is %d ms\n",
+										sensor_name, data_rate, buffer_delay);
 
-	handle = psh_open_session(sensor_type);
+	handle = psh_open_session_with_name(sensor_name);
 
 	if (handle == NULL) {
 		printf("psh_open_session() returned NULL handle. \n");
@@ -876,19 +841,19 @@ int main(int argc, char **argv)
 		p_accel_data = (struct accel_data *)buf;
 		size = psh_get_single(handle, buf, 128);
 
-		if (sensor_type == SENSOR_ACCELEROMETER) {
+		if (strncmp(sensor_name, "ACCEL", SNR_NAME_MAX_LEN) == 0) {
 			struct accel_data *p_accel_data =
 					(struct accel_data *)buf;
 			printf("get_single returns, x, y, z is %d, %d, %d, "
 				"size is %d \n", p_accel_data->x,
 				p_accel_data->y, p_accel_data->z, size);
-		} else if (sensor_type == SENSOR_GYRO) {
+		} else if (strncmp(sensor_name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
 			struct gyro_raw_data *p_gyro_raw_data =
 					(struct gyro_raw_data *)buf;
 			printf("get_single returns, x, y, z is %d, %d, %d, "
 				"size is %d \n", p_gyro_raw_data->x,
 				p_gyro_raw_data->y, p_gyro_raw_data->z, size);
-		} else if (sensor_type == SENSOR_COMP) {
+		} else if (strncmp(sensor_name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
 			struct compass_raw_data *p_compass_raw_data =
 					(struct compass_raw_data *)buf;
 			printf("get_single returns, calibrated--%d\n x, y, z is %d, %d, %d, "
@@ -897,96 +862,96 @@ int main(int argc, char **argv)
 					p_compass_raw_data->x,
 					p_compass_raw_data->y,
 					p_compass_raw_data->z, size);
-		} else if (sensor_type == SENSOR_BARO) {
+		} else if (strncmp(sensor_name, "BARO", SNR_NAME_MAX_LEN) == 0) {
 			struct baro_raw_data *p_baro_raw_data =
 					(struct baro_raw_data *)buf;
 			printf("get_single returns, baro raw data is %d \n",
 					p_baro_raw_data->p);
-		} else if (sensor_type == SENSOR_ALS) {
+		} else if (strncmp(sensor_name, "ALS_P", SNR_NAME_MAX_LEN) == 0) {
 			struct als_raw_data *p_als_raw_data =
 					(struct als_raw_data *)buf;
 			printf("get_single returns, ALS raw data is %d\n",
 					p_als_raw_data->lux);
-		} else if (sensor_type == SENSOR_PROXIMITY) {
+		} else if (strncmp(sensor_name, "PS_P", SNR_NAME_MAX_LEN) == 0) {
 			struct ps_phy_data  *p_ps_phy_data =
 					(struct ps_phy_data  *)buf;
 			printf("get_single returns, near is %d\n",
 					p_ps_phy_data->near);
-		} else if (sensor_type == SENSOR_TC) {
+		} else if (strncmp(sensor_name, "TERMC", SNR_NAME_MAX_LEN) == 0) {
 			struct tc_data *p_tc_data = (struct tc_data *)buf;
 			printf("get_single returns, orien_xy, "
 					"orien_z is %d, %d size is %d \n",
 					p_tc_data->orien_xy,
 					p_tc_data->orien_z, size);
-		} else if (sensor_type == SENSOR_LPE) {
+		} else if (strncmp(sensor_name, "LPE_P", SNR_NAME_MAX_LEN) == 0) {
 						struct lpe_phy_data *p_lpe_phy_data =
 										(struct lpe_phy_data *)buf;
 						printf("get_single returns, lpe_msg is "
 								"%u\n", p_lpe_phy_data->lpe_msg);
-				} else if (sensor_type == SENSOR_ACTIVITY) {
+		} else if (strncmp(sensor_name, "PHYAC", SNR_NAME_MAX_LEN) == 0) {
 			printf("activity doesn't support get_single\n");
-		} else if (sensor_type == SENSOR_GS) {
+		} else if (strncmp(sensor_name, "GSSPT", SNR_NAME_MAX_LEN) == 0) {
 			struct gs_data *p_gs_data =
 					(struct gs_data *)buf;
 			printf("get_single returns, size is %d\n",
 					p_gs_data->size);
-		} else if (sensor_type == SENSOR_GESTURE_HMM) {
+		} else if (strncmp(sensor_name, "GSPX", SNR_NAME_MAX_LEN) == 0) {
 			struct gesture_hmm_data *p_gesture_hmm_data =
 					(struct gesture_hmm_data *)buf;
 			printf("get_single returns, size is %d, gesture is %d\n",
 					p_gesture_hmm_data->size, p_gesture_hmm_data->prox_gesture);
-		} else if (sensor_type == SENSOR_GESTURE_FLICK) {
+		} else if (strncmp(sensor_name, "GSFLK", SNR_NAME_MAX_LEN) == 0) {
 			struct gesture_flick_data *p_gesture_flick_data =
 					(struct gesture_flick_data *)buf;
 			printf("get_single returns, flick is %d\n",
 					p_gesture_flick_data->flick);
-		} else if (sensor_type == SENSOR_GESTURE_EARTOUCH) {
+		} else if (strncmp(sensor_name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
 			struct gesture_eartouch_data *p_gesture_eartouch_data =
 					(struct gesture_eartouch_data *)buf;
 			printf("get_single returns, eartouch is %d\n",
 					p_gesture_eartouch_data->eartouch);
-		} else if (sensor_type == SENSOR_SHAKING) {
+		} else if (strncmp(sensor_name, "SHAKI", SNR_NAME_MAX_LEN) == 0) {
 			struct shaking_data *p_shaking_data =
 					(struct shaking_data *)buf;
 			printf("get_single returns, shaking is %d\n",
 					p_shaking_data->shaking);
-		} else if (sensor_type == SENSOR_LIFT_VERTICAL) {
+		} else if (strncmp(sensor_name, "LTVTL", SNR_NAME_MAX_LEN) == 0) {
 			struct lv_data *p_lv_data =
 					(struct lv_data *)buf;
 			printf("get_single returns, lift vertical is %d\n",
 					p_lv_data->state);
-		} else if (sensor_type == SENSOR_STAP) {
+		} else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0) {
 			struct stap_data *p_stap_data =
 					(struct stap_data *)buf;
 			printf("get_single returns, stap is %d\n",
 					p_stap_data->stap);
-		} else if (sensor_type == SENSOR_SIGNIFICANT_MOTION) {
+		} else if (strncmp(sensor_name, "SIGMT", SNR_NAME_MAX_LEN) == 0) {
 			struct sm_data *p_sm_data =
 					(struct sm_data *)buf;
 			printf("get_single returns, significant motion is %d\n",
 					p_sm_data->state);
-		} else if (sensor_type == SENSOR_PAN_TILT_ZOOM) {
+		} else if (strncmp(sensor_name, "PTZ", SNR_NAME_MAX_LEN) == 0) {
 			struct ptz_data *p_ptz_data =
 					(struct ptz_data *)buf;
 			printf("get_single returns, ptz is %d %d\n",
 					p_ptz_data->cls_name, p_ptz_data->angle);
-		} else if (sensor_type == SENSOR_DEVICE_POSITION) {
+		} else if (strncmp(sensor_name, "DVPOS", SNR_NAME_MAX_LEN) == 0) {
 			struct device_position_data *p_device_position_data =
 					(struct device_position_data *)buf;
 			printf("get_single returns, device position is %d\n",
 					p_device_position_data->pos);
-		} else if (sensor_type == SENSOR_LIFT_LOOK) {
+		} else if (strncmp(sensor_name, "LIFLK", SNR_NAME_MAX_LEN) == 0) {
 			struct lift_look_data *p_lift_look_data =
 					(struct lift_look_data *)buf;
 			printf("get_single returns, lift look is %d\n",
 					p_lift_look_data->liftlook);
-		} else if (sensor_type == SENSOR_DTWGS) {
+		} else if (strncmp(sensor_name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
 			struct dtwgs_data *p_dtwgs_data =
 					(struct dtwgs_data *)buf;
 			printf("get_single returns, dtwgs is (%d %d)\n",
 					p_dtwgs_data->gsnum,
 					p_dtwgs_data->score);
-		} else if (sensor_type == SENSOR_ROTATION_VECTOR) {
+		} else if (strncmp(sensor_name, "RVECT", SNR_NAME_MAX_LEN) == 0) {
 			struct rotation_vector_data *p_rotation_vector_data =
 					(struct rotation_vector_data *)buf;
 			printf("get_single returns, rotation vector is (%d, %d,"
@@ -994,7 +959,7 @@ int main(int argc, char **argv)
 				p_rotation_vector_data->y,
 				p_rotation_vector_data->z,
 				p_rotation_vector_data->w);
-		} else if (sensor_type == SENSOR_GAME_ROTATION_VECTOR) {
+		} else if (strncmp(sensor_name, "6AGRV", SNR_NAME_MAX_LEN) == 0) {
 			struct game_rotation_vector_data *p_game_rotation_vector_data =
 					(struct game_rotation_vector_data *)buf;
 			printf("get_single returns, game rotation vector is (%d, %d,"
@@ -1002,7 +967,7 @@ int main(int argc, char **argv)
 				p_game_rotation_vector_data->y,
 				p_game_rotation_vector_data->z,
 				p_game_rotation_vector_data->w);
-		} else if (sensor_type == SENSOR_GEOMAGNETIC_ROTATION_VECTOR) {
+		} else if (strncmp(sensor_name, "6AMRV", SNR_NAME_MAX_LEN) == 0) {
 			struct geomagnetic_rotation_vector_data *p_geomagnetic_rotation_vector_data =
 					(struct geomagnetic_rotation_vector_data *)buf;
 			printf("get_single returns, geomagnetic rotation vector is (%d, %d,"
@@ -1010,32 +975,32 @@ int main(int argc, char **argv)
 				p_geomagnetic_rotation_vector_data->y,
 				p_geomagnetic_rotation_vector_data->z,
 				p_geomagnetic_rotation_vector_data->w);
-		} else if (sensor_type == SENSOR_GRAVITY) {
+		} else if (strncmp(sensor_name, "GRAVI", SNR_NAME_MAX_LEN) == 0) {
 			struct gravity_data *p_gravity_data =
 					(struct gravity_data *)buf;
 			printf("get_single returns, gravity is (%d, %d, %d)\n",
 				p_gravity_data->x, p_gravity_data->y,
 				p_gravity_data->z);
-		} else if (sensor_type == SENSOR_LINEAR_ACCEL) {
+		} else if (strncmp(sensor_name, "LACCL", SNR_NAME_MAX_LEN) == 0) {
 			struct linear_accel_data *p_linear_accel_data =
 					(struct linear_accel_data *)buf;
 			printf("get_single returns, linear acceleration is "
 				"(%d, %d, %d)\n", p_linear_accel_data->x,
 				p_linear_accel_data->y,
 				p_linear_accel_data->z);
-		} else if (sensor_type == SENSOR_ORIENTATION) {
+		} else if (strncmp(sensor_name, "ORIEN", SNR_NAME_MAX_LEN) == 0) {
 			struct orientation_data *p_orientation_data =
 					(struct orientation_data *)buf;
 			printf("get_single returns, orientation is "
 				"(%d, %d, %d)\n", p_orientation_data->azimuth,
 				p_orientation_data->pitch,
 				p_orientation_data->roll);
-		} else if (sensor_type == SENSOR_MAG_HEADING) {
+		} else if (strncmp(sensor_name, "MAGHD", SNR_NAME_MAX_LEN) == 0) {
 			struct mag_heading_data *p_mag_heading_data =
 					(struct mag_heading_data *)buf;
 			printf("get_single returns, magnetic north heading is "
 				"%d\n", p_mag_heading_data->heading);
-		} else if (sensor_type == SENSOR_BIST) {
+		} else if (strncmp(sensor_name, "BIST", SNR_NAME_MAX_LEN) == 0) {
 			int i;
 			struct bist_data *p_bist_data =
 					(struct bist_data *)buf;
@@ -1045,7 +1010,7 @@ int main(int argc, char **argv)
 		}
 	} else if (cmd_type == 1) {
 
-		if (sensor_type != SENSOR_LPE) {
+		if (strncmp(sensor_name, "LPE_P", SNR_NAME_MAX_LEN) != 0) {
 			for (i = 0; i < prop_count; ++i) {
 				printf("%d, %d\n", prop_ids[i], prop_vals[i]);
 				ret = psh_set_property(handle, prop_ids[i], &prop_vals[i]);
@@ -1056,9 +1021,9 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if (sensor_type == SENSOR_PEDOMETER || sensor_type == SENSOR_STEPCOUNTER || sensor_type == SENSOR_STEPDETECTOR)
+		if (strncmp(sensor_name, "PEDOM", SNR_NAME_MAX_LEN) == 0 || strncmp(sensor_name, "SCOUN", SNR_NAME_MAX_LEN) == 0 || strncmp(sensor_name, "SDET", SNR_NAME_MAX_LEN) == 0)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 2);
-		else if (sensor_type == SENSOR_PROXIMITY)
+		else if (strncmp(sensor_name, "PS_P", SNR_NAME_MAX_LEN) == 0)
 			ret = psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 1);
 		else
 			ret = psh_start_streaming(handle, data_rate, buffer_delay);
@@ -1069,7 +1034,7 @@ int main(int argc, char **argv)
 			return -1;
 		}
 
-		if (sensor_type == SENSOR_LPE) {
+		if (strncmp(sensor_name, "LPE_P", SNR_NAME_MAX_LEN) == 0) {
 			for (i = 0; i < prop_count; ++i) {
 				printf("%d, %d\n", prop_ids[i], prop_vals[i]);
 				ret = psh_set_property(handle, prop_ids[i], &prop_vals[i]);
@@ -1082,75 +1047,75 @@ int main(int argc, char **argv)
 
 		fd = psh_get_fd(handle);
 
-		if (sensor_type == SENSOR_ACCELEROMETER)
+		if (strncmp(sensor_name, "ACCEL", SNR_NAME_MAX_LEN) == 0)
 			dump_accel_data(fd);
-		else if (sensor_type == SENSOR_GYRO)
+		else if (strncmp(sensor_name, "GYRO", SNR_NAME_MAX_LEN) == 0)
 			dump_gyro_data(fd);
-		else if (sensor_type == SENSOR_COMP)
+		else if (strncmp(sensor_name, "COMPS", SNR_NAME_MAX_LEN) == 0)
 			dump_comp_data(fd);
-		else if (sensor_type == SENSOR_BARO)
+		else if (strncmp(sensor_name, "BARO", SNR_NAME_MAX_LEN) == 0)
 			dump_baro_data(fd);
-		else if (sensor_type == SENSOR_ALS)
+		else if (strncmp(sensor_name, "ALS_P", SNR_NAME_MAX_LEN) == 0)
 			dump_als_data(fd);
-		else if (sensor_type == SENSOR_PROXIMITY)
+		else if (strncmp(sensor_name, "PS_P", SNR_NAME_MAX_LEN) == 0)
 			dump_proximity_data(fd);
-		else if (sensor_type == SENSOR_TC)
+		else if (strncmp(sensor_name, "TERMC", SNR_NAME_MAX_LEN) == 0)
 			dump_tc_data(fd);
-		else if (sensor_type == SENSOR_LPE)
+		else if (strncmp(sensor_name, "LPE_P", SNR_NAME_MAX_LEN) == 0)
 			dump_lpe_data(fd);
-		else if (sensor_type == SENSOR_ACTIVITY)
+		else if (strncmp(sensor_name, "PHYAC", SNR_NAME_MAX_LEN) == 0)
 			dump_activity_data(fd);
-		else if (sensor_type == SENSOR_GS)
+		else if (strncmp(sensor_name, "GSSPT", SNR_NAME_MAX_LEN) == 0)
 			dump_gs_data(fd);
-		else if (sensor_type == SENSOR_GESTURE_HMM)
+		else if (strncmp(sensor_name, "GSPX", SNR_NAME_MAX_LEN) == 0)
 			dump_gesture_hmm_data(fd);
-		else if (sensor_type == SENSOR_GESTURE_FLICK)
+		else if (strncmp(sensor_name, "GSFLK", SNR_NAME_MAX_LEN) == 0)
 			dump_gesture_flick_data(fd);
-		else if (sensor_type == SENSOR_GESTURE_EARTOUCH)
+		else if (strncmp(sensor_name, "GSETH", SNR_NAME_MAX_LEN) == 0)
 			dump_gesture_eartouch_data(fd);
-		else if (sensor_type == SENSOR_ROTATION_VECTOR)
+		else if (strncmp(sensor_name, "RVECT", SNR_NAME_MAX_LEN) == 0)
 			dump_rotation_vector_data(fd);
-		else if (sensor_type == SENSOR_GAME_ROTATION_VECTOR)
+		else if (strncmp(sensor_name, "6AGRV", SNR_NAME_MAX_LEN) == 0)
 			dump_game_rotation_vector_data(fd);
-		else if (sensor_type == SENSOR_GEOMAGNETIC_ROTATION_VECTOR)
+		else if (strncmp(sensor_name, "6AMRV", SNR_NAME_MAX_LEN) == 0)
 			dump_geomagnetic_rotation_vector_data(fd);
-		else if (sensor_type == SENSOR_GRAVITY)
+		else if (strncmp(sensor_name, "GRAVI", SNR_NAME_MAX_LEN) == 0)
 			dump_gravity_data(fd);
-		else if (sensor_type == SENSOR_LINEAR_ACCEL)
+		else if (strncmp(sensor_name, "LACCL", SNR_NAME_MAX_LEN) == 0)
 			dump_linear_accel_data(fd);
-		else if (sensor_type == SENSOR_ORIENTATION)
+		else if (strncmp(sensor_name, "ORIEN", SNR_NAME_MAX_LEN) == 0)
 			dump_orientation_data(fd);
-		else if (sensor_type == SENSOR_9DOF)
+		else if (strncmp(sensor_name, "9DOF", SNR_NAME_MAX_LEN) == 0)
 			dump_9dof_data(fd);
-		else if (sensor_type == SENSOR_6DOFAG)
+		else if (strncmp(sensor_name, "6DOFG", SNR_NAME_MAX_LEN) == 0)
 			dump_6dofag_data(fd);
-		else if (sensor_type == SENSOR_6DOFAM)
+		else if (strncmp(sensor_name, "6DOFM", SNR_NAME_MAX_LEN) == 0)
 			dump_6dofam_data(fd);
-		else if (sensor_type == SENSOR_PEDOMETER)
+		else if (strncmp(sensor_name, "PEDOM", SNR_NAME_MAX_LEN) == 0)
 			dump_pedometer_data(fd);
-		else if (sensor_type == SENSOR_MAG_HEADING)
+		else if (strncmp(sensor_name, "MAGHD", SNR_NAME_MAX_LEN) == 0)
 			dump_mag_heading_data(fd);
-		else if (sensor_type == SENSOR_SHAKING)
+		else if (strncmp(sensor_name, "SHAKI", SNR_NAME_MAX_LEN) == 0)
 			dump_shaking_data(fd);
-		else if (sensor_type == SENSOR_MOVE_DETECT)
+		else if (strncmp(sensor_name, "MOVDT", SNR_NAME_MAX_LEN) == 0)
 			dump_md_data(fd);
-		else if (sensor_type == SENSOR_STAP)
+		else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0)
 			dump_stap_data(fd);
-		else if (sensor_type == SENSOR_PAN_TILT_ZOOM)
+		else if (strncmp(sensor_name, "PTZ", SNR_NAME_MAX_LEN) == 0)
 			dump_ptz_data(fd);
-		else if (sensor_type == SENSOR_LIFT_VERTICAL)
+		else if (strncmp(sensor_name, "LTVTL", SNR_NAME_MAX_LEN) == 0)
 			dump_lv_data(fd);
-		else if (sensor_type == SENSOR_DEVICE_POSITION)
+		else if (strncmp(sensor_name, "DVPOS", SNR_NAME_MAX_LEN) == 0)
 			dump_device_position_data(fd);
-		else if (sensor_type == SENSOR_STEPCOUNTER)
+		else if (strncmp(sensor_name, "SCOUN", SNR_NAME_MAX_LEN) == 0)
 			dump_stepcounter_data(fd);
-		else if (sensor_type == SENSOR_STEPDETECTOR)
+		else if (strncmp(sensor_name, "SDET", SNR_NAME_MAX_LEN) == 0)
 			dump_stepdetector_data(fd);
-		else if (sensor_type == SENSOR_SIGNIFICANT_MOTION)
+		else if (strncmp(sensor_name, "SIGMT", SNR_NAME_MAX_LEN) == 0)
 			dump_significantmotion_data(fd);
-		else if (sensor_type == SENSOR_LIFT_LOOK)
+		else if (strncmp(sensor_name, "LIFLK", SNR_NAME_MAX_LEN) == 0)
 			dump_lift_look_data(fd);
-		else if (sensor_type == SENSOR_DTWGS)
+		else if (strncmp(sensor_name, "DTWGS", SNR_NAME_MAX_LEN) == 0)
 			dump_dtwgs_data(fd);
 	}
 //	sleep(200);

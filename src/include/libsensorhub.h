@@ -160,6 +160,8 @@ typedef void * handle_t;
 /* return NULL if failed */
 handle_t psh_open_session(psh_sensor_t sensor_type);
 
+handle_t psh_open_session_with_name(char *name);
+
 void psh_close_session(handle_t handle);
 
 /* return 0 when success
