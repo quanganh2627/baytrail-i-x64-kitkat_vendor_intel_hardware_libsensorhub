@@ -2280,6 +2280,7 @@ static void remove_session_by_fd(int fd)
 						send_set_property(&sensor_list[i], PROP_DTWGSM_DST, 4, (unsigned char *)&dest);
 						send_set_property(&sensor_list[i], PROP_DTWGSM_TEMPLATE, dtwgs_option.prop_size2, (unsigned char *)dtwgs_option.prop_temp2);
 					}
+				}
 			}  else if (strncmp(sensor_list[i].name, "GSETH", SNR_NAME_MAX_LEN) == 0) {
 				ctx_gesture_eartouch_option_t gesture_eartouch_option;
 				if (ctx_close_session(p_session_state->handle, &gesture_eartouch_option) == 1) {
