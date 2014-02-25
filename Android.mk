@@ -16,6 +16,10 @@ LOCAL_SRC_FILES := src/daemon/main.c \
 
 LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy
 
+#LOCAL_SHARED_LIBRARIES += libcontextarbitor
+
+#LOCAL_CFLAGS := -DENABLE_CONTEXT_ARBITOR
+
 LOCAL_MODULE := sensorhubd
 
 include $(BUILD_EXECUTABLE)
