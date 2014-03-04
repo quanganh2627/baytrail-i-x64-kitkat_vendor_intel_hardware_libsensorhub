@@ -25,7 +25,7 @@ typedef struct {
 	struct cmd_event_param *evt_param;
 } session_context_t;
 
-handle_t psh_open_session_with_name(char *name)
+handle_t psh_open_session_with_name(const char *name)
 {
 	int datafd, len, ret, event_type, ctlfd;
 	char message[MAX_MESSAGE_LENGTH];
@@ -362,15 +362,10 @@ error_t psh_set_calibration(handle_t handle,
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
 
-	if (strncmp(session_context->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
-		strncmp(session_context->name, "GYROC", SNR_NAME_MAX_LEN) != 0)
-		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
-
 	if (param == NULL)
 		return ERROR_WRONG_PARAMETER;
 
 	cmd_event_len = sizeof(cmd_event) + sizeof(*param);
-	param->sensor_type = 0;
 
 	cmd_cal.cmd.event_type = EVENT_CMD;
 	cmd_cal.cmd.cmd = CMD_SET_CALIBRATION;
@@ -420,10 +415,6 @@ error_t psh_get_calibration(handle_t handle,
 	log_message(DEBUG, "***********DEL-%s:%d", __func__, __LINE__);
 	if (session_context == NULL)
 		return ERROR_NOT_AVAILABLE;
-
-	if (strncmp(session_context->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
-		strncmp(session_context->name, "GYROC", SNR_NAME_MAX_LEN) != 0)
-		return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 	req.event_type = EVENT_CMD;
 	req.cmd = CMD_GET_CALIBRATION;

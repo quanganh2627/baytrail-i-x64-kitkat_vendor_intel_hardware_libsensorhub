@@ -160,7 +160,7 @@ typedef void * handle_t;
 /* return NULL if failed */
 handle_t psh_open_session(psh_sensor_t sensor_type);
 
-handle_t psh_open_session_with_name(char *name);
+handle_t psh_open_session_with_name(const char *name);
 
 void psh_close_session(handle_t handle);
 
@@ -218,14 +218,12 @@ struct gyro_raw_data {
 	short x;
 	short y;
 	short z;
-	short accuracy;
 } __attribute__ ((packed));
 
 struct compass_raw_data {
 	short x;
 	short y;
 	short z;
-	short accuracy;		/* high or low */
 } __attribute__ ((packed));
 
 struct tc_data {
@@ -321,16 +319,10 @@ struct orientation_data {
 	int roll;
 } __attribute__ ((packed));
 
-struct compasscal_info {
-	int offset[3];
-	int w[3][3];
-	int bfield;
-} __attribute__ ((packed));
-
-struct gyrocal_info {
-	short x;
-	short y;
-	short z;
+#define MAX_CALDATA_SIZE		128
+struct cal_param {
+	unsigned char size;
+	char data[MAX_CALDATA_SIZE];
 } __attribute__ ((packed));
 
 #define SUBCMD_CALIBRATION_SET		(0x1)
@@ -341,13 +333,9 @@ struct gyrocal_info {
 #define SUBCMD_CALIBRATION_TRUE		(100)
 #define SUBCMD_CALIBRATION_FALSE 	(0)
 struct cmd_calibration_param {
-	psh_sensor_t sensor_type;
 	unsigned char sub_cmd;
 	unsigned char calibrated;
-	union {
-		struct compasscal_info compass;
-		struct gyrocal_info gyro;
-	} cal_param;
+	struct cal_param cal_param;
 } __attribute__ ((packed));
 
 struct sub_event {

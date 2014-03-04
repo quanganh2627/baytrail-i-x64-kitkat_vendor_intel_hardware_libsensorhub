@@ -61,8 +61,7 @@ static void dump_comp_data(int fd)
 
 		p_compass_raw_data = (struct compass_raw_data *)buf;
 		while (size > 0) {
-		printf("accuracy:%d  x, y, z is: %d, %d, %d, size is %d \n",
-				p_compass_raw_data->accuracy,
+		printf(" x, y, z is: %d, %d, %d, size is %d \n",
 				p_compass_raw_data->x, p_compass_raw_data->y,
 				p_compass_raw_data->z, size);
 			size = size - sizeof(struct compass_raw_data);
@@ -856,9 +855,8 @@ int main(int argc, char **argv)
 		} else if (strncmp(sensor_name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
 			struct compass_raw_data *p_compass_raw_data =
 					(struct compass_raw_data *)buf;
-			printf("get_single returns, calibrated--%d\n x, y, z is %d, %d, %d, "
+			printf("get_single returns, x, y, z is %d, %d, %d, "
 					"size is %d \n",
-					p_compass_raw_data->accuracy,
 					p_compass_raw_data->x,
 					p_compass_raw_data->y,
 					p_compass_raw_data->z, size);

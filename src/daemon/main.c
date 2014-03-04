@@ -45,35 +45,22 @@ static int sockfd = -1, ctlfd = -1, datafd = -1, datasizefd = -1, fwversionfd = 
 
 static int enable_debug_data_rate = 0;
 
-#define COMPASS_CALIBRATION_FILE "/data/compass.conf"
-#define GYRO_CALIBRATION_FILE "/data/gyro.conf"
+#define MAX_CAL_FILE_PATH 20
 
 /* definition and struct for calibration used by psh_fw */
-#define CMD_CALIBRATION_SET	(0x1)
-#define CMD_CALIBRATION_GET	(0x2)
-#define CMD_CALIBRATION_START	(0x3)
-#define CMD_CALIBRATION_STOP	(0x4)
-struct cmd_compasscal_param {
+struct cal_param_info {
+	char size;
+	char data[0];
+} __attribute__ ((packed));
+
+struct calibration_param {
 	unsigned char sub_cmd;
-	struct compasscal_info info;
+	struct cal_param_info info;
 } __attribute__ ((packed));
 
-struct cmd_gyrocal_param {
-	unsigned char sub_cmd;
-	struct gyrocal_info info;
-} __attribute__ ((packed));
-
-#define CALIB_RESULT_NONE	(0)
-#define CALIB_RESULT_USER 	(1)
-#define CALIB_RESULT_AUTO 	(2)
-struct resp_compasscal {
+struct resp_calibration {
 	unsigned char calib_result;
-	struct compasscal_info info;
-} __attribute__ ((packed));
-
-struct resp_gyrocal {
-	unsigned char calib_result;
-	struct gyrocal_info info;
+	struct cal_param_info info;
 } __attribute__ ((packed));
 
 /* Calibration status */
@@ -114,11 +101,12 @@ typedef struct session_state_t {
 
 /* data structure to keep state for a particular type of sensor */
 typedef struct {
-	int sensor_id;
+	unsigned char sensor_id;
 	char name[SNR_NAME_MAX_LEN + 1];
 	short freq_max;
 	int data_rate;
 	int buffer_delay;
+	char support_calibration;
 	int calibration_status; // only for compass_cal and gyro_cal
 	session_state_t *list;
 } sensor_state_t;
@@ -399,13 +387,12 @@ enum resp_type {
 	RESP_STREAMING,
 	RESP_DEBUG_MSG,
 	RESP_DEBUG_GET_MASK = 5,
-	RESP_GYRO_CAL_RESULT,
+	RESP_CAL_RESULT,
 	RESP_BIST_RESULT,
 	RESP_ADD_EVENT,
 	RESP_CLEAR_EVENT,
 	RESP_EVENT = 10,
 	RESP_GET_STATUS,
-	RESP_COMP_CAL_RESULT,
 };
 
 static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12};
@@ -770,14 +757,6 @@ static void get_calibration(sensor_state_t *p_sensor_state,
 		return;
 	}
 
-	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
-		strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) != 0) {
-		log_message(DEBUG, "Get calibration with confused parameter,"
-					"sensor type is not for calibration, is %s\n",
-					p_sensor_state->name);
-		return;
-	}
-
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d",
 			0,			// tran_id
 			cmd_type_to_cmd_id[CMD_GET_CALIBRATION],	// cmd_id
@@ -826,92 +805,48 @@ static void set_calibration(sensor_state_t *p_sensor_state,
 
 	if (param->sub_cmd == SUBCMD_CALIBRATION_SET) {
 		// 30 parameters, horrible Orz...
+		int i;
 		unsigned char* p;
 		log_message(DEBUG, "Set calibration, sensor_type %s\n", p_sensor_state->name);
 
 		if (param->sub_cmd != SUBCMD_CALIBRATION_SET) {
 			log_message(DEBUG, "Set calibration with confused parameter,"
 						"sub_cmd is %d\n",param->sub_cmd);
-
 			return;
 		}
 
 		if (param->calibrated != SUBCMD_CALIBRATION_TRUE) {
 			log_message(DEBUG, "Set calibration with confused parameter,"
 						"calibrated is %u\n",param->calibrated);
-
 			return;
 		}
 
-		if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) == 0) {
-			/* For compass_cal, the parameter is:
-			 * offset[3], w[3][3], bfield
-			 */
-			int i, j;
-
-			for (i = 0; i < 3; i++) {
-				p = (unsigned char*)&param->cal_param.compass.offset[i];
-				len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-					p[0], p[1], p[2], p[3]); // offset[i]
-			}
-
-			if (len <= 0) {
-				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
-				return;
-			}
-
-			for (i = 0; i < 3; i++)
-				for (j = 0; j < 3; j++) {
-				p = (unsigned char*)&param->cal_param.compass.w[i][j];
-				len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d ",
-					p[0], p[1], p[2], p[3]); // w[i][j]
-			}
-
-			if (len <= 0) {
-				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
-				return;
-			}
-
-			p = (unsigned char*)&param->cal_param.compass.bfield;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d %d %d",
-				p[0], p[1], p[2], p[3]); // bfield
-
-			if (len <= 0) {
-				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
-				return;
-			}
-		} else if (strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) == 0) {
-			/* For gyro_cal, the parameter is:
-			 * x, y, z
-			 */
-			p = (unsigned char*)&param->cal_param.gyro.x;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d ",
-				p[0], p[1]); // x
-
-			if (len <= 0) {
-				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
-				return;
-			}
-
-			p = (unsigned char*)&param->cal_param.gyro.y;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d ",
-				p[0], p[1]); // y
-
-			if (len <= 0) {
-				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
-				return;
-			}
-
-			p = (unsigned char*)&param->cal_param.gyro.z;
-			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d %d",
-				p[0], p[1]); // z
-
-			if (len <= 0) {
-				log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
-				return;
-			}
-
+		/* For parameter, the parameter is:
+		 * u8 size, u8 data[]
+		 */
+		if (param->cal_param.size > MAX_CALDATA_SIZE) {
+			LOGE("FATAL: cal_param.size %d is larger than %d \n", param->cal_param.size, MAX_CALDATA_SIZE);
+			return;
 		}
+
+		p = (unsigned char*)&param->cal_param.size;
+		len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d ",	*p); // size
+
+		if (len <= 0) {
+			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+			return;
+		}
+
+		for (i = 0; i < param->cal_param.size; i++) {
+			p = (unsigned char*)&param->cal_param.data[i];
+			len += snprintf (cmdstring + len, MAX_STRING_SIZE - len, "%d ",	*p); // data[]
+		}
+
+		if (len <= 0) {
+			log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
+			return;
+		}
+
 	} else if (param->sub_cmd == SUBCMD_CALIBRATION_START) {
 		log_message(DEBUG, "Calibration START, sensor_type %s\n", p_sensor_state->name);
 
@@ -919,12 +854,13 @@ static void set_calibration(sensor_state_t *p_sensor_state,
 		log_message(DEBUG, "Calibration STOP, sensor_type %s\n", p_sensor_state->name);
 
 	}
+
 	if (len <= 0) {
 		log_message(CRITICAL, "[%s] failed to compose cmd_string \n", __func__);
 		return;
 	}
 
-	log_message(DEBUG, "Send to control node :%s\n", cmdstring);
+	LOGI("Send to control node :%s\n", cmdstring);
 	ret = write(ctlfd, cmdstring, len);
 	if (ret != len)
 		log_message(DEBUG, "[%s]Error in sending cmd:%d\n", __func__, ret);
@@ -934,7 +870,7 @@ static void load_calibration_from_file(sensor_state_t *p_sensor_state,
 					struct cmd_calibration_param *param)
 {
 	FILE *conf;
-	const char *file_name;
+	char file_name[MAX_CAL_FILE_PATH];
 
 	if (p_sensor_state == NULL) {
 		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
@@ -943,12 +879,7 @@ static void load_calibration_from_file(sensor_state_t *p_sensor_state,
 
 	memset(param, 0, sizeof(struct cmd_calibration_param));
 
-	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) == 0)
-		file_name = COMPASS_CALIBRATION_FILE;
-	else if (strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) == 0)
-		file_name = GYRO_CALIBRATION_FILE;
-	else
-		return;
+	snprintf(file_name, MAX_CAL_FILE_PATH, "/data/%s.conf", p_sensor_state->name);
 
 	conf = fopen(file_name, "r");
 
@@ -967,6 +898,7 @@ static void load_calibration_from_file(sensor_state_t *p_sensor_state,
 	}
 
 	fread(param, sizeof(struct cmd_calibration_param), 1, conf);
+
 	fclose(conf);
 }
 
@@ -974,19 +906,14 @@ static void store_calibration_to_file(sensor_state_t *p_sensor_state,
 					struct cmd_calibration_param *param)
 {
 	FILE *conf;
-	const char *file_name;
+	char file_name[MAX_CAL_FILE_PATH];
 
 	if (p_sensor_state == NULL) {
 		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
 		return;
 	}
 
-	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) == 0)
-		file_name = COMPASS_CALIBRATION_FILE;
-	else if (strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) == 0)
-		file_name = GYRO_CALIBRATION_FILE;
-	else
-		return;
+	snprintf(file_name, MAX_CAL_FILE_PATH, "/data/%s.conf", p_sensor_state->name);
 
 	conf = fopen(file_name, "w");
 
@@ -1018,10 +945,6 @@ static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
 		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
 		return -1;
 	}
-
-	if (strncmp(p_sensor_state->name, "COMPC", SNR_NAME_MAX_LEN) != 0 &&
-		strncmp(p_sensor_state->name, "GYROC", SNR_NAME_MAX_LEN) != 0)
-		return -1;
 
 	if (status & CALIBRATION_NEED_STORE)
 		p_sensor_state->calibration_status |=
@@ -1298,11 +1221,17 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		get_single(p_sensor_state, p_session_state);
 		*reply_now = 0;
 	} else if (cmd == CMD_GET_CALIBRATION) {
+		if (p_sensor_state->support_calibration == 0)
+			return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
+
 		get_calibration(p_sensor_state, p_session_state);
 		*reply_now = 0;
 	} else if (cmd == CMD_SET_CALIBRATION) {
 		char *p = (char*)p_cmd;
 		struct cmd_calibration_param *cal_param;
+
+		if (p_sensor_state->support_calibration == 0)
+			return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 		if (!parameter) {
 			log_message(DEBUG, "ERR: This CMD need take parameter\n");
@@ -1400,18 +1329,12 @@ static void handle_message(int fd, char *message)
 		p_session_state->handle = ctx_open_session(p_sensor_state->name);
 #endif
 
-		if ((strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0) &&
-			p_sensor_state->list == NULL) {
-			sensor_state_t *p_cal_sensor_state;
+		if ((p_sensor_state->support_calibration == 1) && (p_sensor_state->list == NULL)) {
 			/* In this case, this sensor is opened firstly,
 			 * So calibration init is needed
 			 */
-			if (strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0)
-				p_cal_sensor_state = get_sensor_state_with_name("COMPC");
-			else
-				p_cal_sensor_state = get_sensor_state_with_name("GYROC");
 
-			set_calibration_status(p_cal_sensor_state, CALIBRATION_INIT, NULL);
+			set_calibration_status(p_sensor_state, CALIBRATION_INIT, NULL);
 		}
 
 		p_session_state->next = p_sensor_state->list;
@@ -1681,15 +1604,7 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			continue;
 		// TODO Compass data breaks the uniform handle of get_single ...
 		// FIXME hard copy , too bad ...
-		if (strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
-			sensor_state_t *p_cal_sensor_state;
-
-			if (strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
-				p_cal_sensor_state = get_sensor_state_with_name("COMPC");
-			} else {
-				p_cal_sensor_state = get_sensor_state_with_name("GYROC");
-			}
-
+		if (p_sensor_state->support_calibration == 1) {
 			p_cmd_ack = malloc(sizeof(cmd_ack_event) + p_cmd_resp->data_len + 2);
 			if (p_cmd_ack == NULL) {
 				LOGE("dispatch_get_single(): malloc failed \n");
@@ -1700,7 +1615,7 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack->buf_len = p_cmd_resp->data_len + 2;
 			{
 				short *p = (short*)(p_cmd_ack->buf + p_cmd_resp->data_len);
-				*p = check_calibration_status(p_cal_sensor_state, CALIBRATION_DONE);
+				*p = check_calibration_status(p_sensor_state, CALIBRATION_DONE);
 			}
 			memcpy(p_cmd_ack->buf, p_cmd_resp->buf, p_cmd_resp->data_len + 2);
 
@@ -1756,7 +1671,6 @@ fail:
 
 static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 {
-	psh_sensor_t sensor_type;
 	unsigned char sensor_id = p_cmd_resp->sensor_id;
 	sensor_state_t *p_sensor_state = get_sensor_state_with_id(sensor_id);
 
@@ -1765,72 +1679,17 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 		return;
 	}
 
-	if ((strncmp(p_sensor_state->name, "GYRO", SNR_NAME_MAX_LEN) == 0)
-		|| (strncmp(p_sensor_state->name, "GYRO1", SNR_NAME_MAX_LEN) == 0)) {
-		sensor_state_t *p_cal_sensor_state;
-		struct gyro_raw_data *p_gyro_raw_data;
-		struct gyro_raw_data *p_fake
-			= (struct gyro_raw_data *)p_cmd_resp->buf;
-		int i, len;
-
-		len = p_cmd_resp->data_len / (sizeof(struct gyro_raw_data) - 2);
-		p_gyro_raw_data = (struct gyro_raw_data *)malloc(len * sizeof(struct gyro_raw_data));
-		if (p_gyro_raw_data == NULL)
-			goto fail;
-
-		p_cal_sensor_state = get_sensor_state_with_name("GYROC");
-		for (i = 0; i < len; ++i) {
-			p_gyro_raw_data[i].x = p_fake[i].x;
-			p_gyro_raw_data[i].y = p_fake[i].y;
-			p_gyro_raw_data[i].z = p_fake[i].z;
-			p_gyro_raw_data[i].accuracy =
-				check_calibration_status(p_cal_sensor_state,
-							CALIBRATION_DONE);
-		}
-		send_data_to_clients(p_sensor_state, p_gyro_raw_data,
-					len*sizeof(struct gyro_raw_data));
-		free(p_gyro_raw_data);
-	} else if ((strncmp(p_sensor_state->name, "COMPS", SNR_NAME_MAX_LEN) == 0)
-		|| (strncmp(p_sensor_state->name, "COMP1", SNR_NAME_MAX_LEN) == 0)) {
-		sensor_state_t *p_cal_sensor_state;
-		struct compass_raw_data *p_compass_raw_data;
-		struct compass_raw_data *p_fake = (struct compass_raw_data *)p_cmd_resp->buf;
-		int i, len;
-
-		len = p_cmd_resp->data_len / (sizeof(struct compass_raw_data) - 2);
-		p_compass_raw_data = malloc(len * sizeof(struct compass_raw_data));
-		if(p_compass_raw_data == NULL)
-			goto fail;
-
-		p_cal_sensor_state = get_sensor_state_with_name("COMPC");
-		for (i = 0; i < len; ++i){
-			p_compass_raw_data[i].x = p_fake[i].x;
-			p_compass_raw_data[i].y = p_fake[i].y;
-			p_compass_raw_data[i].z = p_fake[i].z;
-			p_compass_raw_data[i].accuracy =
-				check_calibration_status(p_cal_sensor_state,
-							CALIBRATION_DONE);
-		}
-		//TODO What to do?
-		send_data_to_clients(p_sensor_state, p_compass_raw_data,
-					len*sizeof(struct compass_raw_data)); // Unggg ...
-		free(p_compass_raw_data);
-        } else {
-		send_data_to_clients(p_sensor_state, p_cmd_resp->buf, p_cmd_resp->data_len);
-	}
+	send_data_to_clients(p_sensor_state, p_cmd_resp->buf, p_cmd_resp->data_len);
 
 	return;
-fail:
-	LOGE("failed to allocate memory \n");
 }
 
-static void handle_calibration(struct cmd_calibration_param * param){
+static void handle_calibration(struct cmd_calibration_param * param, unsigned char sensor_id){
 	sensor_state_t *p_sensor_state;
 	session_state_t *p_session_state;
 	cmd_ack_event *p_cmd_ack;
-	psh_sensor_t sensor_type = param->sensor_type;
 
-	p_sensor_state = get_sensor_state_with_name(sensor_type_to_name_str[sensor_type].name);
+	p_sensor_state = get_sensor_state_with_id(sensor_id);
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
 		return;
@@ -2022,32 +1881,19 @@ static void dispatch_data()
 			dispatch_get_single(p_cmd_resp);
 		else if (p_cmd_resp->cmd_type == RESP_STREAMING) {
 			dispatch_streaming(p_cmd_resp);
-		} else if (p_cmd_resp->cmd_type == RESP_COMP_CAL_RESULT){
+		} else if (p_cmd_resp->cmd_type == RESP_CAL_RESULT){
 			struct cmd_calibration_param param;
-			struct resp_compasscal *p = (struct resp_compasscal*)p_cmd_resp->buf;
+			struct resp_calibration *p = (struct resp_calibration*)p_cmd_resp->buf;
 
-			if (p_cmd_resp->data_len != sizeof(struct resp_compasscal))
+			if (p_cmd_resp->data_len != sizeof(struct resp_calibration) + p->info.size)
 				log_message(DEBUG, "Get a calibration_get response with wrong data_len:%d\n",
 											p_cmd_resp->data_len);
 
-			param.sensor_type = SENSOR_CALIBRATION_COMP;
 			param.sub_cmd = SUBCMD_CALIBRATION_GET;
 			param.calibrated = p->calib_result;
-			param.cal_param.compass = p->info;
-			handle_calibration(&param);
-		} else if (p_cmd_resp->cmd_type == RESP_GYRO_CAL_RESULT){
-			struct cmd_calibration_param param;
-			struct resp_gyrocal *p = (struct resp_gyrocal*)p_cmd_resp->buf;
-
-			if (p_cmd_resp->data_len != sizeof(struct resp_gyrocal))
-				log_message(DEBUG, "Get a calibration_get response with wrong data_len:%d\n",
-											p_cmd_resp->data_len);
-
-			param.sensor_type = SENSOR_CALIBRATION_GYRO;
-			param.sub_cmd = SUBCMD_CALIBRATION_GET;
-			param.calibrated = p->calib_result;
-			param.cal_param.gyro = p->info;
-			handle_calibration(&param);
+			memcpy(&param.cal_param, &p->info, sizeof(p->info) + p->info.size);
+			log_message(DEBUG, "sensor_id is %d, result is %d, size is %d \n", p_cmd_resp->sensor_id, param.calibrated, p->info.size);
+			handle_calibration(&param, p_cmd_resp->sensor_id);
 		} else if (p_cmd_resp->cmd_type == RESP_ADD_EVENT) {
 			/* TODO: record event id, match client with trans id, send return value to client */
 			handle_add_event_resp(p_cmd_resp);
@@ -2106,22 +1952,17 @@ static void remove_session_by_fd(int fd)
 			else
 				p->next = p_session_state->next;
 
-			if (strncmp(sensor_list[i].name, "COMPS", SNR_NAME_MAX_LEN) == 0 || strncmp(sensor_list[i].name, "GYRO", SNR_NAME_MAX_LEN) == 0) {
+			if (sensor_list[i].support_calibration == 1) {
 				sensor_state_t *p_sensor_state;
 				/* In this case, this session is closed,
 				 * So calibration parameter is needed to store to file
 				 */
-				if (strncmp(sensor_list[i].name, "COMPS", SNR_NAME_MAX_LEN) == 0) {
-					p_sensor_state = get_sensor_state_with_name("COMPC");
-				} else {
-					p_sensor_state = get_sensor_state_with_name("GYROC");
-				}
 
 				/* Set the CALIBRATION_NEED_STORE bit,
 				 * parameter will be stored when get_calibration() response arrives
 				 */
-				set_calibration_status(p_sensor_state, CALIBRATION_NEED_STORE, NULL);
-				get_calibration(p_sensor_state, NULL);
+				set_calibration_status(sensor_list + i, CALIBRATION_NEED_STORE, NULL);
+				get_calibration(sensor_list + i, NULL);
 			}
 #ifdef ENABLE_CONTEXT_ARBITOR
 			ctx_option_t *out_option = NULL;
@@ -2268,6 +2109,7 @@ static void get_status()
 		unsigned short data_cnt;
 		unsigned short slide;
 		unsigned short priv;
+#define SENSOR_ATTRIB_HAVE_CALIB	((unsigned short) 0x1 << 12)
 		unsigned short attri;
 
 		short freq_max;	// -1, means no fixed data rate
@@ -2339,6 +2181,10 @@ static void get_status()
 		sensor_list[current_sensor_index].sensor_id = snr_info->id;
 		sensor_list[current_sensor_index].freq_max = snr_info->freq_max;
 		memcpy(sensor_list[current_sensor_index].name, snr_info->name, SNR_NAME_MAX_LEN);
+		if (snr_info->attri & SENSOR_ATTRIB_HAVE_CALIB) {
+			sensor_list[current_sensor_index].support_calibration = 1;
+			LOGI("sensor %s support calibration \n", snr_info->name);
+		}
 
 		current_sensor_index++;
 	}

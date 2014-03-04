@@ -16,26 +16,7 @@ static void dump_calibration_info(int gyro, struct cmd_calibration_param * param
 {
 	printf ("calibration result: %u\n", param->calibrated);
 
-	if (gyro) {
-		printf ("x y z: %d %d %d\n", param->cal_param.gyro.x,
-						param->cal_param.gyro.y,
-						param->cal_param.gyro.z);
-	} else {
-		printf ("offset: %d %d %d\n", param->cal_param.compass.offset[0],
-						param->cal_param.compass.offset[1],
-						param->cal_param.compass.offset[2]);
-		printf ("w: %d %d %d\n   %d %d %d\n   %d %d %d\n",
-						param->cal_param.compass.w[0][0],
-						param->cal_param.compass.w[0][1],
-						param->cal_param.compass.w[0][2],
-						param->cal_param.compass.w[1][0],
-						param->cal_param.compass.w[1][1],
-						param->cal_param.compass.w[1][2],
-						param->cal_param.compass.w[2][0],
-						param->cal_param.compass.w[2][1],
-						param->cal_param.compass.w[2][2]);
-		printf ("bfield: %d\n", param->cal_param.compass.bfield);
-	}
+	printf ("cal_info size: %d \n", param->cal_param.size);
 }
 
 static int get_set(int argc, char* argv[])
@@ -115,9 +96,9 @@ int main (int argc, char* argv[])
 	memset(&param, 0, sizeof(struct cmd_calibration_param));
 
 	if (req >> 1)
-		cal = psh_open_session(SENSOR_CALIBRATION_GYRO);
+		cal = psh_open_session_with_name("GYRO");
 	else
-		cal = psh_open_session(SENSOR_CALIBRATION_COMP);
+		cal = psh_open_session_with_name("COMPS");
 	assert(cal != NULL);
 
 	if (req & SET){
