@@ -19,9 +19,9 @@ static void dump_accel_data(int fd)
 
 		p_accel_data = (struct accel_data *)buf;
 		while (size > 0) {
-			printf("x, y, z is: %d, %d, %d, size is %d \n",
+			printf("x, y, z is: %d, %d, %d, size is %d, ts is %lld \n",
 					p_accel_data->x, p_accel_data->y,
-					p_accel_data->z, size);
+					p_accel_data->z, size, p_accel_data->ts);
 			size = size - sizeof(struct accel_data);
 			p = p + sizeof(struct accel_data);
 			p_accel_data = (struct accel_data *)p;
@@ -40,9 +40,9 @@ static void dump_gyro_data(int fd)
 
 		p_gyro_raw_data = (struct gyro_raw_data *)buf;
 		while (size > 0) {
-		printf("x, y, z is: %d, %d, %d, size is %d \n",
+		printf("x, y, z is: %d, %d, %d, size is %d,  ts is %lld \n",
 					p_gyro_raw_data->x, p_gyro_raw_data->y,
-					p_gyro_raw_data->z, size);
+					p_gyro_raw_data->z, size, p_gyro_raw_data->ts);
 			size = size - sizeof(struct gyro_raw_data);
 			p = p + sizeof(struct gyro_raw_data);
 			p_gyro_raw_data = (struct gyro_raw_data *)p;
@@ -61,9 +61,9 @@ static void dump_comp_data(int fd)
 
 		p_compass_raw_data = (struct compass_raw_data *)buf;
 		while (size > 0) {
-		printf(" x, y, z is: %d, %d, %d, size is %d \n",
+		printf(" x, y, z is: %d, %d, %d, size is %d, ts is %lld \n",
 				p_compass_raw_data->x, p_compass_raw_data->y,
-				p_compass_raw_data->z, size);
+				p_compass_raw_data->z, size, p_compass_raw_data->ts);
 			size = size - sizeof(struct compass_raw_data);
 			p = p + sizeof(struct compass_raw_data);
 			p_compass_raw_data = (struct compass_raw_data *)p;

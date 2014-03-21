@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 typedef enum {
         SENSOR_INVALID = -1,
 	SENSOR_ACCELEROMETER = 0,
@@ -209,78 +211,95 @@ error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int
 
 /* data format of each sensor type */
 struct accel_data {
+	int64_t ts;
 	short x;
 	short y;
 	short z;
 } __attribute__ ((packed));
 
 struct gyro_raw_data {
+	int64_t ts;
 	short x;
 	short y;
 	short z;
 } __attribute__ ((packed));
 
 struct compass_raw_data {
+	int64_t ts;
 	short x;
 	short y;
 	short z;
 } __attribute__ ((packed));
 
 struct tc_data {
+	int64_t ts;
 	short orien_xy;
 	short orien_z;
 } __attribute__ ((packed));
 
 struct baro_raw_data {
+	int64_t ts;
 	int p;
 } __attribute__ ((packed));
 
 struct als_raw_data {
+	int64_t ts;
 	unsigned short lux;
 } __attribute__ ((packed));
 
+#define MAX_PHY_ACT_DATA_LEN 64
 struct phy_activity_data {
+	int64_t ts;
 	short len;
-	short values[64];
+	short values[0];
 } __attribute__ ((packed));
 
 struct gs_data {
+	int64_t ts;
 	unsigned short size; //unit is byte
 	short sample[0];
 } __attribute__ ((packed));
 
 struct gesture_hmm_data {
+	int64_t ts;
 	short prox_gesture; //proximity if not use context arbiter; gesture if use context arbiter
 	unsigned short size; //unit is byte
-	short sample[900];
+	short sample[0];
 } __attribute__ ((packed));
 
 struct gesture_eartouch_data {
+	int64_t ts;
 	short eartouch;
 } __attribute__ ((packed));
 
 struct ps_phy_data {
+	int64_t ts;
 	unsigned short near;
 } __attribute__ ((packed));
 
 struct gesture_flick_data {
+	int64_t ts;
 	short flick;
 } __attribute__ ((packed));
 
 struct shaking_data {
+	int64_t ts;
 	short shaking;
 } __attribute__ ((packed));
 
 struct stap_data {
+	int64_t ts;
 	short stap;
 } __attribute__ ((packed));
 
 struct ptz_data {
+	int64_t ts;
 	short cls_name;	/* ptz class: pan, tilt, zoom */
 	short angle;		/* ptz angle: 0.1deg/s */
 }__attribute__ ((packed));
 
 struct rotation_vector_data {
+	int64_t ts;
 	int x;
 	int y;
 	int z;
@@ -288,6 +307,7 @@ struct rotation_vector_data {
 } __attribute__ ((packed));
 
 struct game_rotation_vector_data {
+	int64_t ts;
 	int x;
 	int y;
 	int z;
@@ -295,6 +315,7 @@ struct game_rotation_vector_data {
 } __attribute__ ((packed));
 
 struct geomagnetic_rotation_vector_data {
+	int64_t ts;
 	int x;
 	int y;
 	int z;
@@ -302,18 +323,21 @@ struct geomagnetic_rotation_vector_data {
 } __attribute__ ((packed));
 
 struct gravity_data {
+	int64_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct linear_accel_data {
+	int64_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct orientation_data {
+	int64_t ts;
 	int azimuth;
 	int pitch;
 	int roll;
@@ -351,28 +375,34 @@ struct event_notification_data {
 } __attribute__ ((packed));
 
 struct ndof_data {
+	int64_t ts;
 	int	m[9];
 } __attribute__ ((packed));
 
 struct ndofag_data {
+	int64_t ts;
 	int     m[9];
 } __attribute__ ((packed));
 
 struct ndofam_data {
+	int64_t ts;
 	int     m[9];
 } __attribute__ ((packed));
 
 struct pedometer_data {
+	int64_t ts;
 	int num;
 	short mode;
 	int vec[0];
 } __attribute__ ((packed));
 
 struct mag_heading_data {
+	int64_t ts;
 	int heading;
 } __attribute__ ((packed));
 
 struct lpe_phy_data {
+	int64_t ts;
 	unsigned int lpe_msg;
 } __attribute__ ((packed));
 
@@ -381,34 +411,42 @@ struct lpe_phy_data {
 #define MD_STATE_STILL 2
 
 struct md_data {
+	int64_t ts;
 	short state;
 } __attribute__ ((packed));
 
 struct lv_data {
+	int64_t ts;
 	short state;
 } __attribute__ ((packed));
 
 struct device_position_data {
+	int64_t ts;
 	short pos;
 } __attribute__ ((packed));
 
 struct sm_data {
+	int64_t ts;
 	short state;
 } __attribute__ ((packed));
 
 struct stepcounter_data {
+	int64_t ts;
 	int num;
 } __attribute__ ((packed));
 
 struct stepdetector_data {
+	int64_t ts;
 	int state;
 } __attribute__ ((packed));
 
 struct lift_look_data {
+	int64_t ts;
 	short liftlook;
 } __attribute__ ((packed));
 
 struct dtwgs_data {
+	int64_t ts;
 	short gsnum;
 	int score;
 } __attribute__ ((packed));
