@@ -12,6 +12,15 @@ LOCAL_SRC_FILES := \
     src/daemon/main.c \
     src/utils/utils.c
 LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy
+
+ifeq ($(strip $(INTEL_FEATURE_AWARESERVICE)),true)
+
+LOCAL_SHARED_LIBRARIES += libcontextarbitor
+
+LOCAL_CFLAGS := -DENABLE_CONTEXT_ARBITOR
+
+endif
+
 include $(BUILD_EXECUTABLE)
 
 #
