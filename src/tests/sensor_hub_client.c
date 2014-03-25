@@ -571,21 +571,21 @@ static void dump_md_data(int fd)
 	}
 }
 
-static void dump_ptz_data(int fd)
+static void dump_pz_data(int fd)
 {
 	char buf[512];
 	int size = 0;
-	struct ptz_data *p_ptz_data;
+	struct pz_data *p_pz_data;
 
 	while ((size = read(fd, buf, 512)) > 0) {
 		char *p = buf;
-		p_ptz_data = (struct ptz_data *)buf;
+		p_pz_data = (struct pz_data *)buf;
 		while (size > 0) {
-			printf("pantiltzoom data is %d, angle is %d, size is %d \n",
-				p_ptz_data->cls_name, p_ptz_data->angle, size);
-			size = size - sizeof(struct ptz_data);
-			p = p + sizeof(struct ptz_data);
-			p_ptz_data = (struct ptz_data *)p;
+			printf("panzoom deltX is %d, deltY is %d, size is %d \n",
+				p_pz_data->deltX, p_pz_data->deltY, size);
+			size = size - sizeof(struct pz_data);
+			p = p + sizeof(struct pz_data);
+			p_pz_data = (struct pz_data *)p;
 		}
 	}
 }
@@ -732,7 +732,7 @@ static void usage()
 		"			GRAVI, gravity;              LACCL, linear acceleration;         ORIEN, orientation;\n"
 		"			9DOF, 9dof;                  PEDOM, pedometer;                   MAGHD, magnetic heading;\n"
 		"			SHAKI, shaking;              MOVDT, move detect;                 STAP, stap;\n"
-		"			PTZ, pan tilt zoom;          LTVTL, lift vertical;               DVPOS, device position;\n"
+		"			PZOOM, pan zoom;     	     LTVTL, lift vertical;               DVPOS, device position;\n"
 		"			SCOUN, step counter;         SDET, step detector;                SIGMT, significant motion;\n"
 		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
 		"			6DOFM, 6dofam;               LIFLK, lift look;                   DTWGS, dtwgs;\n"
@@ -928,11 +928,11 @@ int main(int argc, char **argv)
 					(struct sm_data *)buf;
 			printf("get_single returns, significant motion is %d\n",
 					p_sm_data->state);
-		} else if (strncmp(sensor_name, "PTZ", SNR_NAME_MAX_LEN) == 0) {
-			struct ptz_data *p_ptz_data =
-					(struct ptz_data *)buf;
-			printf("get_single returns, ptz is %d %d\n",
-					p_ptz_data->cls_name, p_ptz_data->angle);
+		} else if (strncmp(sensor_name, "PZOOM", SNR_NAME_MAX_LEN) == 0) {
+			struct pz_data *p_pz_data =
+					(struct pz_data *)buf;
+			printf("get_single returns, pz is %d %d\n",
+					p_pz_data->deltX, p_pz_data->deltY);
 		} else if (strncmp(sensor_name, "DVPOS", SNR_NAME_MAX_LEN) == 0) {
 			struct device_position_data *p_device_position_data =
 					(struct device_position_data *)buf;
@@ -1099,8 +1099,8 @@ int main(int argc, char **argv)
 			dump_md_data(fd);
 		else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0)
 			dump_stap_data(fd);
-		else if (strncmp(sensor_name, "PTZ", SNR_NAME_MAX_LEN) == 0)
-			dump_ptz_data(fd);
+		else if (strncmp(sensor_name, "PZOOM", SNR_NAME_MAX_LEN) == 0)
+			dump_pz_data(fd);
 		else if (strncmp(sensor_name, "LTVTL", SNR_NAME_MAX_LEN) == 0)
 			dump_lv_data(fd);
 		else if (strncmp(sensor_name, "DVPOS", SNR_NAME_MAX_LEN) == 0)

@@ -292,10 +292,10 @@ struct stap_data {
 	short stap;
 } __attribute__ ((packed));
 
-struct ptz_data {
+struct pz_data {
 	int64_t ts;
-	short cls_name;	/* ptz class: pan, tilt, zoom */
-	short angle;		/* ptz angle: 0.1deg/s */
+	short deltX;
+	short deltY;		/* deltX and deltY: 0.01deg/s */
 }__attribute__ ((packed));
 
 struct rotation_vector_data {
