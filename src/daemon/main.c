@@ -82,7 +82,7 @@ typedef struct session_state_t {
 	state_t state;
 	char flag;		// To differentiate between no_stop (0) and no_stop_no_report (1)
 	int get_single;		// 1: pending; 0: not pending
-	int get_calibration;
+	int get_calibration;    // 1: calibration state is getting by external session; 0: calibration state is auto report
 	int datafd;
 	char datafd_invalid;
 	int ctlfd;
@@ -1688,6 +1688,7 @@ static void handle_calibration(struct cmd_calibration_param * param, unsigned ch
 	sensor_state_t *p_sensor_state;
 	session_state_t *p_session_state;
 	cmd_ack_event *p_cmd_ack;
+        int not_store = 0;
 
 	p_sensor_state = get_sensor_state_with_id(sensor_id);
 	if (p_sensor_state == NULL) {
@@ -1705,6 +1706,8 @@ static void handle_calibration(struct cmd_calibration_param * param, unsigned ch
 		if (p_session_state->get_calibration == 0)
 			continue;
 
+                /* not store calibration result when only client get */
+                not_store = 1;
 		p_cmd_ack = malloc(sizeof(cmd_ack_event) + sizeof(struct cmd_calibration_param));
 		if (p_cmd_ack == NULL) {
 			LOGE("failed to allocate memory \n");
@@ -1724,6 +1727,9 @@ static void handle_calibration(struct cmd_calibration_param * param, unsigned ch
 fail:
 		p_session_state->get_calibration = 0;
 	}
+
+        if (not_store)
+                return;
 
 	if (param->calibrated == SUBCMD_CALIBRATION_TRUE) {
 		param->sub_cmd = SUBCMD_CALIBRATION_SET;
@@ -1952,18 +1958,6 @@ static void remove_session_by_fd(int fd)
 			else
 				p->next = p_session_state->next;
 
-			if (sensor_list[i].support_calibration == 1) {
-				sensor_state_t *p_sensor_state;
-				/* In this case, this session is closed,
-				 * So calibration parameter is needed to store to file
-				 */
-
-				/* Set the CALIBRATION_NEED_STORE bit,
-				 * parameter will be stored when get_calibration() response arrives
-				 */
-				set_calibration_status(sensor_list + i, CALIBRATION_NEED_STORE, NULL);
-				get_calibration(sensor_list + i, NULL);
-			}
 #ifdef ENABLE_CONTEXT_ARBITOR
 			ctx_option_t *out_option = NULL;
 			int j;
