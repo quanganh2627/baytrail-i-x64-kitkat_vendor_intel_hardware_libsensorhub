@@ -923,7 +923,8 @@ static void store_calibration_to_file(sensor_state_t *p_sensor_state,
 		return;
 	}
 
-	fwrite(param, sizeof(struct cmd_calibration_param), 1, conf);
+	/* write the real length of calibration data into file */
+	fwrite(param, sizeof(*param) - sizeof(param->cal_param) + sizeof(param->cal_param.size) + param->cal_param.size, 1, conf);
 	fclose(conf);
 }
 

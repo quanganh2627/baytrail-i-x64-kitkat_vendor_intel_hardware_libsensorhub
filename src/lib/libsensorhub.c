@@ -182,45 +182,11 @@ void psh_close_session(handle_t handle)
 
 error_t psh_start_streaming(handle_t handle, int data_rate, int buffer_delay)
 {
-	session_context_t *session_context = (session_context_t *)handle;
-	cmd_event cmd;
-	int ret, event_type;
-	char message[MAX_MESSAGE_LENGTH];
-	cmd_ack_event *p_cmd_ack;
 
-	if (session_context == NULL)
-		return ERROR_NOT_AVAILABLE;
-
-	if (data_rate == 0)
-		return ERROR_NOT_AVAILABLE;
-
-	cmd.event_type = EVENT_CMD;
-	cmd.cmd = CMD_START_STREAMING;
-	cmd.parameter = data_rate;
-	cmd.parameter1 = buffer_delay;
-	cmd.parameter2 = 0;
-
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
-
-	event_type = *((int *) message);
-	if (event_type != EVENT_CMD_ACK)
-		return ERROR_CAN_NOT_GET_REPLY;
-
-	p_cmd_ack = (cmd_ack_event *)message;
-
-	if (p_cmd_ack->ret != SUCCESS)
-		return ERROR_DATA_RATE_NOT_SUPPORTED;
-
-	return ERROR_NONE;
+	return psh_start_streaming_with_flag(handle, data_rate, buffer_delay, 0);
 }
 
-/* flag: 2 means no_stop_no_report when screen off; 1 means no_stop when screen off; 0 means stop when screen off */
+/* flag: 2 means no_stop_no_report when IA sleep; 1 means no_stop when IA sleep; 0 means stop when IA sleep */
 error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer_delay, streaming_flag flag)
 {
 	session_context_t *session_context = (session_context_t *)handle;
@@ -260,6 +226,7 @@ error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer
 
 	if (p_cmd_ack->ret != SUCCESS)
 		return ERROR_DATA_RATE_NOT_SUPPORTED;
+
 	return ERROR_NONE;
 }
 

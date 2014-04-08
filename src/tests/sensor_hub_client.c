@@ -203,7 +203,7 @@ static void dump_activity_data(int fd)
 		char *p = buf;
 
 		p_phy_activity_data = (struct phy_activity_data *)buf;
-		int unit_size = sizeof(p_phy_activity_data->len) +
+		int unit_size = sizeof(*p_phy_activity_data) +
 			sizeof(p_phy_activity_data->values[0]) *
 			p_phy_activity_data->len;
 		while (size > 0) {
