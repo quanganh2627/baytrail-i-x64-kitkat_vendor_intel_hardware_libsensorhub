@@ -83,6 +83,7 @@ typedef struct session_state_t {
 	char flag;		// To differentiate between no_stop (0) and no_stop_no_report (1)
 	int get_single;		// 1: pending; 0: not pending
 	int get_calibration;    // 1: calibration state is getting by external session; 0: calibration state is auto report
+	int flush_streaming;   // non_zero: sensor unit data size; 0: not pending
 	int datafd;
 	char datafd_invalid;
 	int ctlfd;
@@ -121,6 +122,8 @@ static int current_sensor_index = 0;	// means the current empty slot of sensor_l
 #define BAYTRAIL 1
 
 char platform;
+
+static char flush_completion_frame[MAX_UNIT_SIZE];
 
 /* Daemonize the sensorhubd */
 static void daemonize()
@@ -393,9 +396,10 @@ enum resp_type {
 	RESP_CLEAR_EVENT,
 	RESP_EVENT = 10,
 	RESP_GET_STATUS,
+	RESP_PSH_EVT = 16,
 };
 
-static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12};
+static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12, 15};
 
 static int send_control_cmd(int tran_id, int cmd_id, int sensor_id, unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg);
 
@@ -577,6 +581,21 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 			p_session_state->flag = 1;
 		}
 	}
+}
+
+static void flush_streaming(sensor_state_t *p_sensor_state, session_state_t *p_session_state, int data_unit_size)
+{
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
+
+	if (p_session_state->state == INACTIVE)
+		return;
+
+	p_session_state->flush_streaming = data_unit_size;
+
+	send_control_cmd(0, cmd_type_to_cmd_id[CMD_FLUSH_STREAMING], 0, 4, 0, 0);
 }
 
 static void stop_streaming(sensor_state_t *p_sensor_state,
@@ -1216,6 +1235,8 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		data_rate_calculated = recalculate_data_rate(p_sensor_state, parameter);
 		start_streaming(p_sensor_state, p_session_state,
 					data_rate_calculated, parameter1, parameter2);
+	} else if (cmd == CMD_FLUSH_STREAMING) {
+		flush_streaming(p_sensor_state, p_session_state, parameter);
 	} else if (cmd == CMD_STOP_STREAMING) {
 		stop_streaming(p_sensor_state, p_session_state);
 	} else if (cmd == CMD_GET_SINGLE) {
@@ -1531,28 +1552,10 @@ struct cmd_resp {
 	char buf[0];
 } __attribute__ ((packed));
 
-static void write_data(session_state_t *p_session_state, void *data, int size)
-{
-	char buf[1];
-	int ret;
-
-	ret = recv(p_session_state->datafd, buf, 1, MSG_DONTWAIT);
-	if (ret == 0)
-		p_session_state->datafd_invalid = 1;
-
-	if (p_session_state->datafd_invalid == 1)
-		return;
-
-	ret = write(p_session_state->datafd, data, size);
-	if (ret < 0)
-		p_session_state->datafd_invalid = 1;
-}
-
 static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 						int size)
 {
 	session_state_t *p_session_state = p_sensor_state->list;
-	char buf[MAX_MESSAGE_LENGTH];
 
 	/* Use slide window mechanism to send data to target client,
 	   buffer_delay is gauranteed, data count is not gauranteed.
@@ -1681,6 +1684,25 @@ static void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 	}
 
 	send_data_to_clients(p_sensor_state, p_cmd_resp->buf, p_cmd_resp->data_len);
+
+	return;
+}
+
+static void dispatch_flush()
+{
+	int i;
+
+        for (i = 0; i < current_sensor_index; i ++) {
+		session_state_t *p_session_state = sensor_list[i].list;
+
+		for (; p_session_state != NULL; p_session_state = p_session_state->next) {
+			if ((p_session_state->flush_streaming != 0) && (p_session_state->flush_streaming <= MAX_UNIT_SIZE)) {
+				send(p_session_state->datafd, flush_completion_frame, p_session_state->flush_streaming, MSG_NOSIGNAL|MSG_DONTWAIT);
+				p_session_state->flush_streaming = 0;
+			}
+		}
+
+        }
 
 	return;
 }
@@ -1888,6 +1910,20 @@ static void dispatch_data()
 			dispatch_get_single(p_cmd_resp);
 		else if (p_cmd_resp->cmd_type == RESP_STREAMING) {
 			dispatch_streaming(p_cmd_resp);
+		} else if (p_cmd_resp->cmd_type == RESP_PSH_EVT) {
+			#define PSH_EVT_ID_FLUSH_DONE ((unsigned char)1)
+			struct resp_psh_evt {
+				unsigned char evt_id;
+				unsigned char evt_buf_len;
+				char evt_buf[0];
+			} __attribute__ ((packed));
+			struct resp_psh_evt *p = (struct resp_psh_evt *)p_cmd_resp->buf;
+
+			if (p_cmd_resp->data_len != sizeof(*p) + p->evt_buf_len)
+				log_message(CRITICAL, "Get a resp_psh_evt with wrong data_len: %d\n", p_cmd_resp->data_len);
+
+			if (p->evt_id == PSH_EVT_ID_FLUSH_DONE)
+				dispatch_flush();
 		} else if (p_cmd_resp->cmd_type == RESP_CAL_RESULT){
 			struct cmd_calibration_param param;
 			struct resp_calibration *p = (struct resp_calibration*)p_cmd_resp->buf;
@@ -2251,6 +2287,8 @@ int main(int argc, char **argv)
 	if (sensor_list == NULL)
 		exit(EXIT_FAILURE);
 	memset(sensor_list, 0, (MAX_SENSOR_INDEX + 1) * sizeof(sensor_state_t));
+
+	memset(flush_completion_frame, 0xff, sizeof(flush_completion_frame));
 
 	while (1) {
 		reset_sensorhub();

@@ -1029,7 +1029,7 @@ int main(int argc, char **argv)
 				"%d\n", p_mag_heading_data->heading);
 		} else if (strncmp(sensor_name, "PDR", SNR_NAME_MAX_LEN) == 0) {
 			struct pdr_data *p_pdr_data =
-					(struct gesture_eartouch_data *)buf;
+					(struct pdr_data *)buf;
 			printf("get_single returns, pdr position is %d, %d\n",
 					p_pdr_data->sample->x, p_pdr_data->sample->y);
 		} else if (strncmp(sensor_name, "BIST", SNR_NAME_MAX_LEN) == 0) {

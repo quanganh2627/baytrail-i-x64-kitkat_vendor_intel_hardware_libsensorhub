@@ -189,6 +189,9 @@ error_t psh_start_streaming(handle_t handle, int data_rate, int buffer_delay);
 /* flag: 2 means no_stop_no_report when IA sleep; 1 means no_stop when IA sleep; 0 means stop when IA sleep */
 error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer_delay, streaming_flag flag);
 
+#define MAX_UNIT_SIZE 128
+error_t psh_flush_streaming(handle_t handle, unsigned int data_unit_size);
+
 error_t psh_stop_streaming(handle_t handle);
 
 /* return data size if success; error_t if failure */
