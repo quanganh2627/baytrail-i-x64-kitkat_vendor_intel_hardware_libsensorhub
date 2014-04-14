@@ -54,6 +54,7 @@ typedef enum {
 	SENSOR_DTWGS,
 	SENSOR_GESTURE_HMM,
 	SENSOR_GESTURE_EARTOUCH,
+	SENSOR_PEDESTRIAN_DEAD_RECKONING,
 
 	SENSOR_BIST,
 
@@ -129,6 +130,16 @@ typedef enum {
 	PROP_EARTOUCH_START = 160,
 	PROP_EARTOUCH_CLSMASK,
 	PROP_EARTOUCH_END = 180,
+
+	PROP_PDR_START = 180,
+	PROP_PDR_USER_H,	/* user's height */
+	PROP_PDR_FLOOR_H,	/* building's floor height */
+	PROP_PDR_INIT_X,	/* init position x (East) */
+	PROP_PDR_INIT_Y,	/* init position y (North) */
+	PROP_PDR_INIT_FL,	/* init floor level */
+	PROP_PDR_N,		/* report interval */
+	PROP_PDR_6DOF,	/* use 6DOF as rmat input, or not */
+	PROP_PDR_END = 200
 } property_type;
 
 typedef enum {
@@ -265,6 +276,22 @@ struct gesture_hmm_data {
 	short prox_gesture; //proximity if not use context arbiter; gesture if use context arbiter
 	unsigned short size; //unit is byte
 	short sample[0];
+} __attribute__ ((packed));
+
+struct pdr_sample {
+	int x;		/* position x, unit is cm */
+	int y;		/* position y, unit is cm */
+	int fl;	/* floor level, unit is 1 */
+	int heading;	/* heading angle, unit is 0.01 deg */
+	int step;	/* step counts in PDR, unit is 1 step */
+	int distance;	/* total PDR distance, unit is cm */
+	int confidence;/* heading confidence, the smaller the better */
+} __attribute__ ((packed));
+
+struct pdr_data {
+	int64_t ts;
+	short size;
+	struct pdr_sample sample[0];
 } __attribute__ ((packed));
 
 struct gesture_eartouch_data {

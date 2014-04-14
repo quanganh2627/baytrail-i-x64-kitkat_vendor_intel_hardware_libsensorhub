@@ -721,6 +721,34 @@ static void dump_dtwgs_data(int fd)
 	}
 }
 
+static void dump_pdr_data(int fd)
+{
+	char buf[4096];
+	int size = 0;
+	int i;
+	struct pdr_data *p_pdr_data;
+
+	while ((size = read(fd, buf, 4096)) > 0) {
+		char *p = buf;
+		p_pdr_data = (struct pdr_data *)buf;
+		int unit_size = sizeof(p_pdr_data->size) + sizeof(p_pdr_data->ts) +
+					sizeof(p_pdr_data->sample[0])
+					* p_pdr_data->size;
+		while (size > 0) {
+			for (i = 0; i < p_pdr_data->size; i++) {
+				printf("position %d %d, floor %d, heading %d, step %d, distance %d, confidence %d, ",
+					p_pdr_data->sample->x, p_pdr_data->sample->y, p_pdr_data->sample->fl,
+					p_pdr_data->sample->heading, p_pdr_data->sample->step, p_pdr_data->sample->distance,
+					p_pdr_data->sample->confidence);
+				printf("pdr data is: size = %d, unit size = %d\n", size, unit_size);
+			}
+			size = size - unit_size;
+			p = p + unit_size;
+			p_pdr_data = (struct pdr_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -736,7 +764,8 @@ static void usage()
 		"			SCOUN, step counter;         SDET, step detector;                SIGMT, significant motion;\n"
 		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
 		"			6DOFM, 6dofam;               LIFLK, lift look;                   DTWGS, dtwgs;\n"
-		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            BIST, BIST;\n");
+		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, pedestrian dead reckoning;\n"
+		"			BIST, BIST;\n");
 	printf("  -r, --date-rate	unit is Hz\n");
 	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set	format: <property id>,<property value>\n");
@@ -998,6 +1027,11 @@ int main(int argc, char **argv)
 					(struct mag_heading_data *)buf;
 			printf("get_single returns, magnetic north heading is "
 				"%d\n", p_mag_heading_data->heading);
+		} else if (strncmp(sensor_name, "PDR", SNR_NAME_MAX_LEN) == 0) {
+			struct pdr_data *p_pdr_data =
+					(struct gesture_eartouch_data *)buf;
+			printf("get_single returns, pdr position is %d, %d\n",
+					p_pdr_data->sample->x, p_pdr_data->sample->y);
 		} else if (strncmp(sensor_name, "BIST", SNR_NAME_MAX_LEN) == 0) {
 			int i;
 			struct bist_data *p_bist_data =
@@ -1113,6 +1147,8 @@ int main(int argc, char **argv)
 			dump_significantmotion_data(fd);
 		else if (strncmp(sensor_name, "LIFLK", SNR_NAME_MAX_LEN) == 0)
 			dump_lift_look_data(fd);
+		else if (strncmp(sensor_name, "PDR", SNR_NAME_MAX_LEN) == 0)
+			dump_pdr_data(fd);
 		else if (strncmp(sensor_name, "DTWGS", SNR_NAME_MAX_LEN) == 0)
 			dump_dtwgs_data(fd);
 	}
