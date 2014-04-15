@@ -55,6 +55,7 @@ typedef enum {
 	SENSOR_GESTURE_HMM,
 	SENSOR_GESTURE_EARTOUCH,
 	SENSOR_PEDESTRIAN_DEAD_RECKONING,
+	SENSOR_INSTANT_ACTIVITY,
 
 	SENSOR_BIST,
 
@@ -118,14 +119,15 @@ typedef enum {
 	PROP_DTWGSM_TEMPLATE,
 	PROP_DTWGSM_END = 140,
 
-	PROP_PEDOPLUS_START = 140,
-	PROP_PEDOPLUS_PIAMODE,
-	PROP_PEDOPLUS_SCOUNTERMODE,
-	PROP_PEDOPLUS_NSC,
-	PROP_PEDOPLUS_NPIA,
-	PROP_PEDOPLUS_ADMISSION,
-	PROP_PEDOPLUS_CLSMASK,
-	PROP_PEDOPLUS_END = 160,
+	PROP_WPD_START = 140,
+	PROP_WPD_SCOUNTERMODE,
+	PROP_WPD_NSC,
+	PROP_WPD_REPORT_PAUSE,
+	PROP_WPD_END = 150,
+
+	PROP_INSTANTACTIVITY_START = 150,
+	PROP_INSTANTACTIVITY_CLSMASK,
+	PROP_INSTANTACTIVITY_END = 160,
 
 	PROP_EARTOUCH_START = 160,
 	PROP_EARTOUCH_CLSMASK,
@@ -153,9 +155,9 @@ typedef enum {
 } property_act_mode;
 
 typedef enum {
-	PROP_PEDOPLUS_MODE_NONCHANGE,
-	PROP_PEDOPLUS_MODE_ONCHANGE,
-} property_pedoplus_mode;
+	PROP_WPD_MODE_NONCHANGE,
+	PROP_WPD_MODE_ONCHANGE,
+} property_wpd_mode;
 
 typedef enum {
 	STOP_WHEN_SCREEN_OFF = 0,
@@ -468,6 +470,11 @@ struct stepcounter_data {
 struct stepdetector_data {
 	int64_t ts;
 	int state;
+} __attribute__ ((packed));
+
+struct instant_activity_data {
+	int64_t ts;
+	int typeclass;
 } __attribute__ ((packed));
 
 struct lift_look_data {

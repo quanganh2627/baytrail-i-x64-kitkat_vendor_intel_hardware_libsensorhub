@@ -749,6 +749,24 @@ static void dump_pdr_data(int fd)
 	}
 }
 
+static void dump_instant_activity_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct instant_activity_data *p_instant_activity_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_instant_activity_data = (struct instant_activity_data *)buf;
+		while (size > 0) {
+			printf("instant activity data is %d, size is %d\n",
+				p_instant_activity_data->typeclass, size);
+			size = size - sizeof(struct instant_activity_data);
+			p_instant_activity_data = (struct instant_activity_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -765,7 +783,7 @@ static void usage()
 		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
 		"			6DOFM, 6dofam;               LIFLK, lift look;                   DTWGS, dtwgs;\n"
 		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, pedestrian dead reckoning;\n"
-		"			BIST, BIST;\n");
+		"			ISACT, instant activity;     BIST, BIST;\n");
 	printf("  -r, --date-rate	unit is Hz\n");
 	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set	format: <property id>,<property value>\n");
@@ -1151,6 +1169,8 @@ int main(int argc, char **argv)
 			dump_pdr_data(fd);
 		else if (strncmp(sensor_name, "DTWGS", SNR_NAME_MAX_LEN) == 0)
 			dump_dtwgs_data(fd);
+		else if (strncmp(sensor_name, "ISACT", SNR_NAME_MAX_LEN) == 0)
+			dump_instant_activity_data(fd);
 	}
 //	sleep(200);
 

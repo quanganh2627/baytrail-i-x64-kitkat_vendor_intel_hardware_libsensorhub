@@ -44,7 +44,7 @@ struct sensor_name sensor_type_to_name_str[SENSOR_MAX] = {
 	{"GSFLK"}, {"RVECT"}, {"GRAVI"}, {"LACCL"}, {"ORIEN"}, {"COMPC"}, {"GYROC"}, {"9DOF"},
 	{"PEDOM"}, {"MAGHD"}, {"SHAKI"}, {"MOVDT"}, {"STAP"}, {"PZOOM"}, {"LTVTL"}, {"DVPOS"},
 	{"SCOUN"}, {"SDET"}, {"SIGMT"}, {"6AGRV"}, {"6AMRV"}, {"6DOFG"}, {"6DOFM"}, {"LIFLK"},
-	{"DTWGS"}, {"GSPX"}, {"GSETH"}, {"PDR"}, {"BIST"}, {"EVENT"}
+	{"DTWGS"}, {"GSPX"}, {"GSETH"}, {"PDR"}, {"ISACT"}, {"BIST"}, {"EVENT"}
 };
 
 typedef unsigned int session_id_t;
