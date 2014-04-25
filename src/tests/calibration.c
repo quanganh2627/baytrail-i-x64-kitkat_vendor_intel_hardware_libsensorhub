@@ -90,10 +90,6 @@ static int read_calibration_file(int req, struct cmd_calibration_param * param)
 
         ret = read(fd, param, sizeof(struct cmd_calibration_param));
         close(fd);
-        if (ret != sizeof(struct cmd_calibration_param)) {
-                printf("size not match: expected: %d actual: %d\n", sizeof(struct cmd_calibration_param), ret);
-                return -1;
-        }
 
         return 0;
 }
