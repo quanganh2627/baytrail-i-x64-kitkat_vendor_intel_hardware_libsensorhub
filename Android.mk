@@ -87,3 +87,12 @@ LOCAL_SHARED_LIBRARIES := libsensorhub liblog
 include $(BUILD_EXECUTABLE)
 
 endif
+
+
+###############################################
+# For ISH build
+###############################################
+ifeq ($(ENABLE_SENSOR_HUB_ISH),true)
+LOCAL_PATH := $(call my-dir)
+include $(LOCAL_PATH)/src_ish/Android.mk
+endif
