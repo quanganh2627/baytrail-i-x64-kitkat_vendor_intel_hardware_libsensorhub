@@ -25,7 +25,7 @@
 #include "../include/message.h"
 #include "../include/bist.h"
 #ifdef ENABLE_CONTEXT_ARBITOR
-#include <libcontextarbitor.h>
+#include <awarelibs/libcontextarbitor.h>
 #endif
 
 #undef LOG_TAG
