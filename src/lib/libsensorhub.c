@@ -7,6 +7,7 @@
 #include <linux/un.h>
 #include <assert.h>
 #include <cutils/sockets.h>
+#include <pthread.h>
 
 #include "../include/message.h"
 #include "../include/socket.h"
@@ -23,7 +24,39 @@ typedef struct {
 	char name[SNR_NAME_MAX_LEN + 1];
 	unsigned char evt_id;
 	struct cmd_event_param *evt_param;
+        pthread_mutex_t ctlfd_lock;
 } session_context_t;
+
+static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_recv,
+                                        size_t len_send, size_t len_recv, pthread_mutex_t *lock)
+{
+        int err, ret;
+        err = pthread_mutex_lock(lock);
+        if (err)
+                LOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
+        ret = send(sockfd, buf_send, len_send, 0);
+	if (ret <= 0) {
+		ret = ERROR_MESSAGE_NOT_SENT;
+                goto err_send;
+        }
+
+        ret = recv(sockfd, buf_recv, len_recv, 0);
+	if (ret <= 0) {
+		ret = ERROR_CAN_NOT_GET_REPLY;
+                goto err_recv;
+        }
+
+        ret = 0;
+
+err_send:
+err_recv:
+        err = pthread_mutex_unlock(lock);
+        if (err)
+                LOGE("%s: Cannot unlock ctlfd! error: %d", __FUNCTION__, err);
+
+        return ret;
+
+}
 
 handle_t psh_open_session_with_name(const char *name)
 {
@@ -153,6 +186,8 @@ handle_t psh_open_session_with_name(const char *name)
 	session_context->evt_id = 0;
 	session_context->evt_param = evt_param;
 
+	pthread_mutex_init(&session_context->ctlfd_lock, NULL);
+
 	return session_context;
 }
 
@@ -175,6 +210,9 @@ void psh_close_session(handle_t handle)
 
 	close(session_context->datafd);
 	close(session_context->ctlfd);
+
+        pthread_mutex_destroy(&session_context->ctlfd_lock);
+
 	if (session_context->evt_param != NULL)
 		free(session_context->evt_param);
 	free(session_context);
@@ -210,13 +248,10 @@ error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer
 	cmd.parameter1 = buffer_delay;
 	cmd.parameter2 = flag;
 
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &cmd, message,
+                                       sizeof(cmd), MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -248,13 +283,10 @@ error_t psh_flush_streaming(handle_t handle, unsigned int data_unit_size)
 	cmd.cmd = CMD_FLUSH_STREAMING;
 	cmd.parameter = data_unit_size;
 
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &cmd, message,
+                                       sizeof(cmd), MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -281,13 +313,10 @@ error_t psh_stop_streaming(handle_t handle)
 	cmd.event_type = EVENT_CMD;
 	cmd.cmd = CMD_STOP_STREAMING;
 
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &cmd, message,
+                                       sizeof(cmd), MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -315,13 +344,10 @@ error_t psh_get_single(handle_t handle, void *buf, int buf_size)
 	cmd.event_type = EVENT_CMD;
 	cmd.cmd = CMD_GET_SINGLE;
 
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd), 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &cmd, message,
+                                       sizeof(cmd), MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -378,13 +404,10 @@ error_t psh_set_calibration(handle_t handle,
 	/* Because handle_cmd only sees cmd->parameter{0,1} ...  */
 	cmd_cal.cmd.parameter = 1;
 
-	ret = send(session_context->ctlfd, &cmd_cal, cmd_event_len, 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &cmd_cal, message,
+                                       cmd_event_len, MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -423,13 +446,10 @@ error_t psh_get_calibration(handle_t handle,
 	req.event_type = EVENT_CMD;
 	req.cmd = CMD_GET_CALIBRATION;
 
-	ret = send(session_context->ctlfd, &req, sizeof req, 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &req, message,
+                                       sizeof req, MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -530,14 +550,11 @@ error_t psh_add_event(handle_t handle)
 	cmd->cmd = CMD_ADD_EVENT;
 	*(struct cmd_event_param *)(cmd->buf) = *evt_param;
 
-	ret = send(session_context->ctlfd, cmd, sizeof(cmd_event) + sizeof(struct cmd_event_param), 0);
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, cmd, message,
+                                       sizeof(cmd_event) + sizeof(struct cmd_event_param), MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
 	free(cmd);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -574,13 +591,10 @@ error_t psh_clear_event(handle_t handle)
 	cmd.cmd = CMD_CLEAR_EVENT;
 	cmd.parameter = session_context->evt_id;
 
-	ret = send(session_context->ctlfd, &cmd, sizeof(cmd_event), 0);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, &cmd, message,
+                                       sizeof(cmd_event), MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
@@ -635,14 +649,11 @@ error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int
 	cmd->parameter1 = size;
 	memcpy(cmd->buf, value, size);
 
-	ret = send(session_context->ctlfd, cmd, sizeof(cmd_event) + size, 0);
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, cmd, message,
+                                       sizeof(cmd_event) + size, MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
 	free(cmd);
-	if (ret <= 0)
-		return ERROR_MESSAGE_NOT_SENT;
-
-	ret = recv(session_context->ctlfd, message, MAX_MESSAGE_LENGTH, 0);
-	if (ret <= 0)
-		return ERROR_CAN_NOT_GET_REPLY;
+	if (ret)
+		return ret;
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_CMD_ACK)
