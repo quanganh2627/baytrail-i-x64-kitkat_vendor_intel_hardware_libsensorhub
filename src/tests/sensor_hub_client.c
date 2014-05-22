@@ -590,24 +590,6 @@ static void dump_pz_data(int fd)
 	}
 }
 
-static void dump_lv_data(int fd)
-{
-	char buf[512];
-	int size = 0;
-	struct lv_data *p_lv_data;
-
-	while ((size = read(fd, buf, 512)) > 0) {
-		char *p = buf;
-		p_lv_data = (struct lv_data *)buf;
-		while (size > 0) {
-			printf("lift vertical data is %d\n", p_lv_data->state);
-			size = size - sizeof(struct lv_data);
-			p = p + sizeof(struct lv_data);
-			p_lv_data = (struct lv_data *)p;
-		}
-	}
-}
-
 static void dump_device_position_data(int fd)
 {
 	char buf[512];
@@ -684,21 +666,21 @@ static void dump_significantmotion_data(int fd)
         }
 }
 
-static void dump_lift_look_data(int fd)
+static void dump_lift_data(int fd)
 {
 	char buf[512];
 	int size = 0;
-	struct lift_look_data *p_lift_look_data;
+	struct lift_data *p_lift_data;
 
         while ((size = read(fd, buf, 512)) > 0) {
                 char *p = buf;
-		p_lift_look_data = (struct lift_look_data *)buf;
+		p_lift_data = (struct lift_data *)buf;
 		while (size > 0) {
-			printf("lift&look data is %d, size is %d \n",
-				p_lift_look_data->liftlook, size);
-			size = size - sizeof(struct lift_look_data);
-			p = p + sizeof(struct lift_look_data);
-			p_lift_look_data = (struct lift_look_data *)p;
+			printf("lift&look data is %d, lift&vertical data is %d \n",
+				p_lift_data->look, p_lift_data->vertical);
+			size = size - sizeof(struct lift_data);
+			p = p + sizeof(struct lift_data);
+			p_lift_data = (struct lift_data *)p;
 		}
 	}
 }
@@ -781,7 +763,7 @@ static void usage()
 		"			PZOOM, pan zoom;     	     LTVTL, lift vertical;               DVPOS, device position;\n"
 		"			SCOUN, step counter;         SDET, step detector;                SIGMT, significant motion;\n"
 		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
-		"			6DOFM, 6dofam;               LIFLK, lift look;                   DTWGS, dtwgs;\n"
+		"			6DOFM, 6dofam;               LIFT,  lift;                        DTWGS, dtwgs;\n"
 		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, pedestrian dead reckoning;\n"
 		"			ISACT, instant activity;     BIST, BIST;\n");
 	printf("  -r, --date-rate	unit is Hz\n");
@@ -960,11 +942,6 @@ int main(int argc, char **argv)
 					(struct shaking_data *)buf;
 			printf("get_single returns, shaking is %d\n",
 					p_shaking_data->shaking);
-		} else if (strncmp(sensor_name, "LTVTL", SNR_NAME_MAX_LEN) == 0) {
-			struct lv_data *p_lv_data =
-					(struct lv_data *)buf;
-			printf("get_single returns, lift vertical is %d\n",
-					p_lv_data->state);
 		} else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0) {
 			struct stap_data *p_stap_data =
 					(struct stap_data *)buf;
@@ -985,11 +962,11 @@ int main(int argc, char **argv)
 					(struct device_position_data *)buf;
 			printf("get_single returns, device position is %d\n",
 					p_device_position_data->pos);
-		} else if (strncmp(sensor_name, "LIFLK", SNR_NAME_MAX_LEN) == 0) {
-			struct lift_look_data *p_lift_look_data =
-					(struct lift_look_data *)buf;
-			printf("get_single returns, lift look is %d\n",
-					p_lift_look_data->liftlook);
+		} else if (strncmp(sensor_name, "LIFT", SNR_NAME_MAX_LEN) == 0) {
+			struct lift_data *p_lift_data =
+					(struct lift_data *)buf;
+			printf("get_single returns, lift look is %d lift vertical is %d\n",
+					p_lift_data->look, p_lift_data->vertical);
 		} else if (strncmp(sensor_name, "DTWGS", SNR_NAME_MAX_LEN) == 0) {
 			struct dtwgs_data *p_dtwgs_data =
 					(struct dtwgs_data *)buf;
@@ -1153,8 +1130,6 @@ int main(int argc, char **argv)
 			dump_stap_data(fd);
 		else if (strncmp(sensor_name, "PZOOM", SNR_NAME_MAX_LEN) == 0)
 			dump_pz_data(fd);
-		else if (strncmp(sensor_name, "LTVTL", SNR_NAME_MAX_LEN) == 0)
-			dump_lv_data(fd);
 		else if (strncmp(sensor_name, "DVPOS", SNR_NAME_MAX_LEN) == 0)
 			dump_device_position_data(fd);
 		else if (strncmp(sensor_name, "SCOUN", SNR_NAME_MAX_LEN) == 0)
@@ -1163,8 +1138,8 @@ int main(int argc, char **argv)
 			dump_stepdetector_data(fd);
 		else if (strncmp(sensor_name, "SIGMT", SNR_NAME_MAX_LEN) == 0)
 			dump_significantmotion_data(fd);
-		else if (strncmp(sensor_name, "LIFLK", SNR_NAME_MAX_LEN) == 0)
-			dump_lift_look_data(fd);
+		else if (strncmp(sensor_name, "LIFT", SNR_NAME_MAX_LEN) == 0)
+			dump_lift_data(fd);
 		else if (strncmp(sensor_name, "PDR", SNR_NAME_MAX_LEN) == 0)
 			dump_pdr_data(fd);
 		else if (strncmp(sensor_name, "DTWGS", SNR_NAME_MAX_LEN) == 0)

@@ -41,7 +41,7 @@ typedef enum {
 	SENSOR_MOVE_DETECT,
 	SENSOR_STAP,
 	SENSOR_PAN_TILT_ZOOM,
-	SENSOR_LIFT_VERTICAL,
+	SENSOR_LIFT_VERTICAL, /*invalid sensor, leave for furture using*/
 	SENSOR_DEVICE_POSITION,
 	SENSOR_STEPCOUNTER,
 	SENSOR_STEPDETECTOR,
@@ -50,7 +50,7 @@ typedef enum {
 	SENSOR_GEOMAGNETIC_ROTATION_VECTOR,
 	SENSOR_6DOFAG,
 	SENSOR_6DOFAM,
-	SENSOR_LIFT_LOOK,
+	SENSOR_LIFT,
 	SENSOR_DTWGS,
 	SENSOR_GESTURE_HMM,
 	SENSOR_GESTURE_EARTOUCH,
@@ -141,7 +141,11 @@ typedef enum {
 	PROP_PDR_INIT_FL,	/* init floor level */
 	PROP_PDR_N,		/* report interval */
 	PROP_PDR_6DOF,	/* use 6DOF as rmat input, or not */
-	PROP_PDR_END = 200
+	PROP_PDR_END = 200,
+
+	PROP_LIFT_START = 200,
+	PROP_LIFT_MASK,
+	PROP_LIFT_END = 220,
 } property_type;
 
 typedef enum {
@@ -447,11 +451,6 @@ struct md_data {
 	short state;
 } __attribute__ ((packed));
 
-struct lv_data {
-	int64_t ts;
-	short state;
-} __attribute__ ((packed));
-
 struct device_position_data {
 	int64_t ts;
 	short pos;
@@ -477,9 +476,10 @@ struct instant_activity_data {
 	int typeclass;
 } __attribute__ ((packed));
 
-struct lift_look_data {
+struct lift_data {
 	int64_t ts;
-	short liftlook;
+	short look;
+	short vertical;
 } __attribute__ ((packed));
 
 struct dtwgs_data {
