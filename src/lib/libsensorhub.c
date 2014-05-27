@@ -68,6 +68,7 @@ handle_t psh_open_session_with_name(const char *name)
 	hello_with_session_id_ack_event *p_hello_with_session_id_ack;
 	session_id_t session_id;
 	struct cmd_event_param *evt_param = NULL;
+	static int retry = 0;
 
 	if (name == NULL)
 		return NULL;
@@ -78,6 +79,16 @@ handle_t psh_open_session_with_name(const char *name)
 
 	/* set up data connection */
 	datafd = socket_local_client(UNIX_SOCKET_PATH, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
+	if (datafd < 0)	{
+		while (retry < 10) {
+			usleep(500000);
+			datafd = socket_local_client(UNIX_SOCKET_PATH, ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
+			if (datafd >= 0)
+				break;
+			retry ++;
+		}
+	}
+
 	if (datafd < 0) {
 		LOGE("socket_local_client() failed\n");
 		return NULL;
