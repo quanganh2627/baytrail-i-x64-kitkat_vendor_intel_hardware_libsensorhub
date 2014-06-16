@@ -619,7 +619,7 @@ static void dump_stepcounter_data(int fd)
                 char *p = buf;
                 p_stepcounter_data = (struct stepcounter_data *)buf;
                 while (size > 0) {
-                        printf("step counter data is %d \n",
+                        printf("step counter data is %d\n",
                                 p_stepcounter_data->num);
                         size = size - sizeof(struct stepcounter_data);
                         p = p + sizeof(struct stepcounter_data);

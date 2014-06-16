@@ -159,7 +159,7 @@ typedef enum {
 } property_act_mode;
 
 typedef enum {
-	PROP_WPD_MODE_NONCHANGE,
+	PROP_WPD_MODE_RESOLUTION,
 	PROP_WPD_MODE_ONCHANGE,
 } property_wpd_mode;
 
