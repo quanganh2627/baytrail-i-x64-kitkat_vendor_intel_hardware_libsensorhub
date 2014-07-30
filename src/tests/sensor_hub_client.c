@@ -276,6 +276,64 @@ static void dump_shaking_data(int fd)
 	}
 }
 
+static void dump_directional_shaking_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct directional_shaking_data *p_dshaking_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_dshaking_data = (struct directional_shaking_data *)buf;
+		while (size > 0) {
+			printf("directional shaking data is %d, size is %d \n",
+				p_dshaking_data->shaking, size);
+			size = size - sizeof(struct directional_shaking_data);
+			p = p + sizeof(struct directional_shaking_data);
+			p_dshaking_data = (struct directional_shaking_data *)p;
+		}
+	}
+}
+
+static void dump_gesture_tilt_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct gesture_tilt_data *p_gesture_tilt_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_gesture_tilt_data = (struct gesture_tilt_data *)buf;
+		while (size > 0) {
+			printf("gesture tilt data is %d, size is %d \n",
+				p_gesture_tilt_data->tilt, size);
+			size = size - sizeof(struct gesture_tilt_data);
+			p = p + sizeof(struct gesture_tilt_data);
+			p_gesture_tilt_data = (struct gesture_tilt_data *)p;
+		}
+	}
+}
+
+static void dump_gesture_snap_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct gesture_snap_data *p_gesture_snap_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_gesture_snap_data = (struct gesture_snap_data *)buf;
+		while (size > 0) {
+			printf("gesture snap data is %d, size is %d \n",
+				p_gesture_snap_data->snap, size);
+			size = size - sizeof(struct gesture_snap_data);
+			p = p + sizeof(struct gesture_snap_data);
+			p_gesture_snap_data = (struct gesture_snap_data *)p;
+		}
+	}
+}
+
+
 static void dump_stap_data(int fd)
 {
 	char buf[512];
@@ -765,7 +823,8 @@ static void usage()
 		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
 		"			6DOFM, 6dofam;               LIFT,  lift;                        DTWGS, dtwgs;\n"
 		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, pedestrian dead reckoning;\n"
-		"			ISACT, instant activity;     BIST, BIST;\n");
+		"			ISACT, instant activity;     DSHAK, directional_shaking;         GTILT, gesture tilt;\n"
+		"			GSNAP, gesture snap;     BIST, BIST;\n");
 	printf("  -r, --date-rate	unit is Hz\n");
 	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set	format: <property id>,<property value>\n");
@@ -942,6 +1001,21 @@ int main(int argc, char **argv)
 					(struct shaking_data *)buf;
 			printf("get_single returns, shaking is %d\n",
 					p_shaking_data->shaking);
+		} else if (strncmp(sensor_name, "DSHAK", SNR_NAME_MAX_LEN) == 0) {
+			struct directional_shaking_data *p_dshaking_data =
+					(struct shaking_data *)buf;
+			printf("get_single returns, directional shaking is %d\n",
+					p_dshaking_data->shaking);
+		} else if (strncmp(sensor_name, "GTILT", SNR_NAME_MAX_LEN) == 0) {
+			struct gesture_tilt_data *p_gesture_tilt_data =
+					(struct gesture_tilt_data *)buf;
+			printf("get_single returns, tilt is %d\n",
+					p_gesture_tilt_data->tilt);
+		} else if (strncmp(sensor_name, "GSNAP", SNR_NAME_MAX_LEN) == 0) {
+			struct gesture_snap_data *p_gesture_snap_data =
+					(struct gesture_snap_data *)buf;
+			printf("get_single returns, snap is %d\n",
+					p_gesture_snap_data->snap);
 		} else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0) {
 			struct stap_data *p_stap_data =
 					(struct stap_data *)buf;
@@ -1124,6 +1198,12 @@ int main(int argc, char **argv)
 			dump_mag_heading_data(fd);
 		else if (strncmp(sensor_name, "SHAKI", SNR_NAME_MAX_LEN) == 0)
 			dump_shaking_data(fd);
+		else if (strncmp(sensor_name, "DSHAK", SNR_NAME_MAX_LEN) == 0)
+			dump_directional_shaking_data(fd);
+		else if (strncmp(sensor_name, "GTILT", SNR_NAME_MAX_LEN) == 0)
+			dump_gesture_tilt_data(fd);
+		else if (strncmp(sensor_name, "GSNAP", SNR_NAME_MAX_LEN) == 0)
+			dump_gesture_snap_data(fd);
 		else if (strncmp(sensor_name, "MOVDT", SNR_NAME_MAX_LEN) == 0)
 			dump_md_data(fd);
 		else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0)

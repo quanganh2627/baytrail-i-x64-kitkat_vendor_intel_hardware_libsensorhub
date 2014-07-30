@@ -56,6 +56,9 @@ typedef enum {
 	SENSOR_GESTURE_EARTOUCH,
 	SENSOR_PEDESTRIAN_DEAD_RECKONING,
 	SENSOR_INSTANT_ACTIVITY,
+	SENSOR_DIRECTIONAL_SHAKING,
+	SENSOR_GESTURE_TILT,
+	SENSOR_GESTURE_SNAP,
 
 	SENSOR_BIST,
 
@@ -146,6 +149,23 @@ typedef enum {
 	PROP_LIFT_START = 200,
 	PROP_LIFT_MASK,
 	PROP_LIFT_END = 220,
+
+	PROP_DIRECTIONAL_SHAKING_START = 220,
+	PROP_DIRECTIONAL_SHAKING_LEVEL,
+	PROP_DIRECTIONAL_SHAKING_END = 240,
+
+	GTILT_PROP_START = 240,
+	GTILT_PROP_CLSMASK,
+	GTILT_PROP_LRTHRESHOLD,
+	GTILT_PROP_UDTHRESHOLD,
+	GTILT_PROP_END = 260,
+
+	GSNAP_PROP_START = 260,
+	GSNAP_PROP_CLSMASK,
+	GSNAP_PROP_LRTHRESHOLD,
+	GSNAP_PROP_UDTHRESHOLD,
+	GSNAP_PROP_CWTHRESHOLD,
+	GSNAP_PROP_END = 280,
 } property_type;
 
 typedef enum {
@@ -321,6 +341,21 @@ struct gesture_flick_data {
 struct shaking_data {
 	int64_t ts;
 	short shaking;
+} __attribute__ ((packed));
+
+struct directional_shaking_data {
+	int64_t ts;
+	short shaking;
+} __attribute__ ((packed));
+
+struct gesture_tilt_data {
+	int64_t ts;
+	short tilt;
+} __attribute__ ((packed));
+
+struct gesture_snap_data {
+	int64_t ts;
+	short snap;
 } __attribute__ ((packed));
 
 struct stap_data {
