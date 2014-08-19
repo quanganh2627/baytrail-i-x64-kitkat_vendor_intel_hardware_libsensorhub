@@ -33,7 +33,7 @@ static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_re
         int err, ret;
         err = pthread_mutex_lock(lock);
         if (err)
-                LOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
+                ALOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
         ret = send(sockfd, buf_send, len_send, 0);
 	if (ret <= 0) {
 		ret = ERROR_MESSAGE_NOT_SENT;
@@ -52,7 +52,7 @@ err_send:
 err_recv:
         err = pthread_mutex_unlock(lock);
         if (err)
-                LOGE("%s: Cannot unlock ctlfd! error: %d", __FUNCTION__, err);
+                ALOGE("%s: Cannot unlock ctlfd! error: %d", __FUNCTION__, err);
 
         return ret;
 
@@ -90,7 +90,7 @@ handle_t psh_open_session_with_name(const char *name)
 	}
 
 	if (datafd < 0) {
-		LOGE("socket_local_client() failed\n");
+		ALOGE("socket_local_client() failed\n");
 		return NULL;
 	}
 
@@ -101,7 +101,7 @@ handle_t psh_open_session_with_name(const char *name)
 	ret = send(datafd, &hello_with_sensor_type, sizeof(hello_with_sensor_type), 0);
 	if (ret < 0) {
 		close(datafd);
-		LOGE("write EVENT_HELLO_WITH_SENSOR_TYPE "
+		ALOGE("write EVENT_HELLO_WITH_SENSOR_TYPE "
 						"failed \n");
 		return NULL;
 	}
@@ -109,14 +109,14 @@ handle_t psh_open_session_with_name(const char *name)
 	ret = recv(datafd, message, MAX_MESSAGE_LENGTH, 0);
 	if (ret < 0) {
 		close(datafd);
-		LOGE("read EVENT_HELLO_WITH_SENSOR_TYPE_ACK failed \n");
+		ALOGE("read EVENT_HELLO_WITH_SENSOR_TYPE_ACK failed \n");
 		return NULL;
 	}
 
 	event_type = *((int *) message);
 	if (event_type != EVENT_HELLO_WITH_SENSOR_TYPE_ACK) {
 		close(datafd);
-		LOGE("not get expected EVENT_HELLO_WITH_SENSOR_TYPE_ACK \n");
+		ALOGE("not get expected EVENT_HELLO_WITH_SENSOR_TYPE_ACK \n");
 		return NULL;
 	}
 
@@ -127,7 +127,7 @@ handle_t psh_open_session_with_name(const char *name)
 	ctlfd = socket_local_client("sensorhubd", ANDROID_SOCKET_NAMESPACE_RESERVED, SOCK_STREAM);
 	if (ctlfd < 0) {
 		close(datafd);
-		LOGE("socket_local_client() failed\n");
+		ALOGE("socket_local_client() failed\n");
 		return NULL;
 	}
 
@@ -138,7 +138,7 @@ handle_t psh_open_session_with_name(const char *name)
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("write EVENT_HELLO_WITH_SESSION_ID failed \n");
+		ALOGE("write EVENT_HELLO_WITH_SESSION_ID failed \n");
 		return NULL;
 	}
 
@@ -146,7 +146,7 @@ handle_t psh_open_session_with_name(const char *name)
 	if (ret < 0) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("read EVENT_HELLO_WITH_SESSION_ID_ACK failed \n");
+		ALOGE("read EVENT_HELLO_WITH_SESSION_ID_ACK failed \n");
 		return NULL;
 	}
 
@@ -154,7 +154,7 @@ handle_t psh_open_session_with_name(const char *name)
 	if (event_type != EVENT_HELLO_WITH_SESSION_ID_ACK) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("not get expected EVENT_HELLO_WITH_SESSION_ID_ACK \n");
+		ALOGE("not get expected EVENT_HELLO_WITH_SESSION_ID_ACK \n");
 		return NULL;
 	}
 
@@ -163,7 +163,7 @@ handle_t psh_open_session_with_name(const char *name)
 	if (ret != SUCCESS) {
 		close(datafd);
 		close(ctlfd);
-		LOGE("failed: EVENT_HELLO_WITH_SESSION_ID_ACK returned %d \n", ret);
+		ALOGE("failed: EVENT_HELLO_WITH_SESSION_ID_ACK returned %d \n", ret);
 		return NULL;
 	}
 
@@ -172,7 +172,7 @@ handle_t psh_open_session_with_name(const char *name)
 		if (evt_param == NULL) {
 			close(datafd);
 			close(ctlfd);
-			LOGE("failed to allocate memory for cmd_event_param");
+			ALOGE("failed to allocate memory for cmd_event_param");
 			return NULL;
 		}
 
@@ -185,7 +185,7 @@ handle_t psh_open_session_with_name(const char *name)
 		close(datafd);
 		close(ctlfd);
 		free(evt_param);
-		LOGE("failed to allocate memory for session_context \n");
+		ALOGE("failed to allocate memory for session_context \n");
 		return NULL;
 	}
 
@@ -510,7 +510,7 @@ error_t psh_event_append(handle_t handle, struct sub_event *sub_evt)
 	/* currently only support 5 sub events */
 	evt_param = session_context->evt_param;
 	if (evt_param->num >= 5) {
-		LOGE("psh_event_append() "
+		ALOGE("psh_event_append() "
 			"currently only support 5 sub events \n");
 		return ERROR_NOT_AVAILABLE;
 	}

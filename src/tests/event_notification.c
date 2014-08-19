@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 
 #undef LOG_TAG
 #define LOG_TAG "event_notification_test"
-	LOGD("event notification test started \n");
+	ALOGD("event notification test started \n");
 
 	handle = psh_open_session(SENSOR_EVENT);
 
