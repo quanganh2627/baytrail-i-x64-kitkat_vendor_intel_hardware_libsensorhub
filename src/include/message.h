@@ -20,6 +20,7 @@ typedef enum {
 	CMD_GET_CALIBRATION,
 	CMD_SET_PROPERTY,
 	CMD_FLUSH_STREAMING,
+	CMD_GET_PROPERTY,
 	CMD_MAX
 } cmd_t;
 
@@ -31,6 +32,22 @@ typedef enum {
 	ERR_CMD_NOT_SUPPORT = -4,
 	ERR_DATA_RATE_NOT_SUPPORT = -5
 } ret_t;
+
+typedef enum {
+	E_ANOTHER_REPLY = 1,
+	E_SUCCESS = 0,
+	E_GENERAL = -1,
+	E_NOMEM = -2,
+	E_PARAM = -3,
+	E_BUSY = -4,
+	E_HW = -5,
+	E_NOSUPPORT = -6,
+	E_RPC_COMM = -7,
+	E_LPE_COMM = -8,
+	E_CMD_ASYNC = -9,
+	E_CMD_NOACK = -10,
+	E_LBUF_COMM = -11
+} cmd_ack_ret_t;
 
 #define SNR_NAME_MAX_LEN	5
 
@@ -81,7 +98,7 @@ typedef struct {
 
 typedef struct {
 	event_t event_type;
-	ret_t ret;
+	cmd_ack_ret_t ret;
 	int buf_len;
 	unsigned char buf[];
 } cmd_ack_event;

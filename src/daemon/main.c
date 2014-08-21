@@ -82,20 +82,17 @@ typedef struct session_state_t {
 	state_t state;
 	char flag;		// To differentiate between no_stop (0) and no_stop_no_report (1)
 	int get_single;		// 1: pending; 0: not pending
-	int get_calibration;    // 1: calibration state is getting by external session; 0: calibration state is auto report
-	int flush_streaming;   // non_zero: sensor unit data size; 0: not pending
+	int get_calibration;	// 1: calibration state is getting by external session; 0: calibration state is auto report
+	int flush_streaming;	// non_zero: sensor unit data size; 0: not pending
+	int get_property;	// 1: waiting for get property message; 0: no waiting
 	int datafd;
 	char datafd_invalid;
 	int ctlfd;
 	session_id_t session_id;
-	union {
 	int data_rate;
 	unsigned char trans_id;
-	};
-	union {
 	int buffer_delay;
 	unsigned char event_id;
-	};
 	void *handle;
 	struct session_state_t *next;
 } session_state_t;
@@ -399,7 +396,7 @@ enum resp_type {
 	RESP_PSH_EVT = 16,
 };
 
-static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12, 15};
+static int cmd_type_to_cmd_id[CMD_MAX] = {2, 3, 4, 5, 6, 9, 9, 12, 15, 17};
 
 static int send_control_cmd(int tran_id, int cmd_id, int sensor_id, unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg);
 
@@ -477,7 +474,8 @@ static int send_control_cmd(int tran_id, int cmd_id, int sensor_id,
  * User should handle start/end flags, by themselves in their *value buffer.
  * User should handle segments concatenation by themselves in virtual sensor.
  */
-static int send_set_property(sensor_state_t *p_sensor_state, property_type prop_type, int len, unsigned char *value)
+static int send_set_property(sensor_state_t *p_sensor_state, session_state_t *p_session_state,
+				 property_type prop_type, int len, unsigned char *value)
 {
 	char cmd_string[MAX_STRING_SIZE];
 	int size, ret, i, j, set_len, left_len;
@@ -494,7 +492,7 @@ static int send_set_property(sensor_state_t *p_sensor_state, property_type prop_
 	left_len = len;
 	for (j = 0; j < (len + MAX_PROP_VALUE_SIZE - 1) / MAX_PROP_VALUE_SIZE; j++) {
 		set_len = left_len > MAX_PROP_VALUE_SIZE ? MAX_PROP_VALUE_SIZE : left_len;
-		size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d", 0,
+		size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d %d", p_session_state->trans_id,
 				cmd_type_to_cmd_id[CMD_SET_PROPERTY], p_sensor_state->sensor_id, set_len + 1,
 				prop_type_byte);
 		for (i = 0; i < set_len; i++) {
@@ -505,12 +503,61 @@ static int send_set_property(sensor_state_t *p_sensor_state, property_type prop_
 		ret = write(ctlfd, cmd_string, size);
 		log_message(DEBUG, "cmd return value is %d\n", ret);
 
-                while (ret < 0)
+                if (ret < 0)
 			return -1;
 
 		p += set_len;
 		left_len -= set_len;
 	}
+
+	return 0;
+}
+
+/*
+ * send_get_property() will get property from related sensors.
+ *
+ * This function will only send cmd, parameter max len is limited to 60.
+ * Feedback message will combined into cmd_ack, and returned max message is limited to 1K.
+ */
+static int send_get_property(sensor_state_t *p_sensor_state, session_state_t *p_session_state,
+								int len, unsigned char *value)
+{
+	char cmd_string[MAX_STRING_SIZE];
+	int size, ret, i;
+	unsigned char *p = value;
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return -1;
+	}
+
+	if (p_session_state == NULL) {
+		log_message(CRITICAL, "%s: p_session_state is NULL \n", __func__);
+		return -1;
+	}
+
+	if (len > MAX_PROP_VALUE_SIZE) {
+		log_message(CRITICAL, "%s: property value size (%d) too big\n", __func__, len);
+		return -1;
+	}
+
+	size = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d %d", p_session_state->trans_id,
+			cmd_type_to_cmd_id[CMD_GET_PROPERTY], p_sensor_state->sensor_id, len);
+	for (i = 0; i < len; i++) {
+		size += snprintf(cmd_string + size, MAX_STRING_SIZE - size, " %d", p[i]);
+	}
+
+	if (size < 0)
+		return -1;
+
+	log_message(DEBUG, "cmd to sysfs is: %s\n", cmd_string);
+	ret = write(ctlfd, cmd_string, size);
+	log_message(DEBUG, "cmd return value is %d\n", ret);
+
+	if (ret < 0)
+		return -1;
+
+	p_session_state->get_property = 1;
 
 	return 0;
 }
@@ -564,7 +611,8 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 	else
 		bit_cfg = bit_cfg_arbiter(p_sensor_state, 0, p_session_state);
 
-	send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
+	send_control_cmd(p_session_state->trans_id,
+			cmd_type_to_cmd_id[CMD_START_STREAMING],
 			p_sensor_state->sensor_id,
 			data_rate_arbitered, buffer_delay_arbitered, bit_cfg);
 //	}
@@ -595,7 +643,7 @@ static void flush_streaming(sensor_state_t *p_sensor_state, session_state_t *p_s
 
 	p_session_state->flush_streaming = data_unit_size;
 
-	send_control_cmd(0, cmd_type_to_cmd_id[CMD_FLUSH_STREAMING], 0, 4, 0, 0);
+	send_control_cmd(p_session_state->trans_id, cmd_type_to_cmd_id[CMD_FLUSH_STREAMING], 0, 4, 0, 0);
 }
 
 static void stop_streaming(sensor_state_t *p_sensor_state,
@@ -603,11 +651,14 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
 	unsigned short bit_cfg_arbitered;
+	unsigned char trans_id;
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
 		return;
 	}
+
+	trans_id = p_session_state->trans_id;
 
 	if (p_session_state->state == INACTIVE)
 		return;
@@ -637,12 +688,12 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 		/* send CMD_START_STREAMING to sysfs control node to
 		   re-config the data rate */
 		bit_cfg_arbitered = bit_cfg_arbiter(p_sensor_state, 0, p_session_state);
-		send_control_cmd(0, cmd_type_to_cmd_id[CMD_START_STREAMING],
+		send_control_cmd(trans_id, cmd_type_to_cmd_id[CMD_START_STREAMING],
 				p_sensor_state->sensor_id,
 				data_rate_arbitered, buffer_delay_arbitered, bit_cfg_arbitered);
 	} else {
 		/* send CMD_STOP_STREAMING cmd to sysfs control node */
-		send_control_cmd(0, cmd_type_to_cmd_id[CMD_STOP_STREAMING],
+		send_control_cmd(trans_id, cmd_type_to_cmd_id[CMD_STOP_STREAMING],
 			p_sensor_state->sensor_id, 0, 0, 0);
 	}
 
@@ -744,6 +795,8 @@ static int fw_verion_compare()
 static void get_single(sensor_state_t *p_sensor_state,
 				session_state_t *p_session_state)
 {
+	unsigned char trans_id;
+
 	log_message(DEBUG, "get_single is called with sensor_type %s \n",
 							p_sensor_state->name);
 
@@ -752,15 +805,17 @@ static void get_single(sensor_state_t *p_sensor_state,
 		return;
 	}
 
+	trans_id = p_session_state->trans_id;
+
 	log_message(DEBUG, "get_single is called with %s \n", p_sensor_state->name);
 
 	/* send CMD_GET_SINGLE to sysfs control node */
 	p_session_state->get_single = 1;
 
 	if (strncmp(p_sensor_state->name, "BIST", SNR_NAME_MAX_LEN) == 0) {
-		send_control_cmd(0, 7, 0, 0, 0, 0);
+		send_control_cmd(trans_id, 7, 0, 0, 0, 0);
 	} else {
-		send_control_cmd(0, cmd_type_to_cmd_id[CMD_GET_SINGLE],
+		send_control_cmd(trans_id, cmd_type_to_cmd_id[CMD_GET_SINGLE],
 			p_sensor_state->sensor_id, 0, 0, 0);
 	}
 }
@@ -770,14 +825,17 @@ static void get_calibration(sensor_state_t *p_sensor_state,
 {
 	char cmdstring[MAX_STRING_SIZE];
 	int ret, len;
+	unsigned char trans_id;
 
 	if (p_sensor_state == NULL) {
 		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
 		return;
 	}
 
+	trans_id = p_session_state->trans_id;
+
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d",
-			0,			// tran_id
+			trans_id,		// tran_id
 			cmd_type_to_cmd_id[CMD_GET_CALIBRATION],	// cmd_id
 			p_sensor_state->sensor_id,	// sensor_id
 			SUBCMD_CALIBRATION_GET);		// sub_cmd
@@ -797,22 +855,29 @@ static void get_calibration(sensor_state_t *p_sensor_state,
 }
 
 static void set_calibration(sensor_state_t *p_sensor_state,
+				session_state_t *p_session_state,
 				struct cmd_calibration_param *param)
 {
 	char cmdstring[MAX_STRING_SIZE];
 	int ret, len = 0;
+	unsigned char trans_id;
 
 	if (p_sensor_state == NULL) {
 		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
 		return;
 	}
 
+	if (p_session_state == NULL)
+		trans_id = 0;
+	else
+		trans_id = p_session_state->trans_id;
+
 	/* Too bad we cannot use send_control_cmd, send cmd by hand. */
 	// echo trans cmd sensor [sensor subcmd calibration [struct parameter info]]
 
 	log_message(DEBUG, "Begin to form command string.\n");
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d ",
-			0,			// tran_id
+			trans_id,		// tran_id
 			cmd_type_to_cmd_id[CMD_SET_CALIBRATION],	// cmd_id
 			p_sensor_state->sensor_id,	// sensor_id
 			param->sub_cmd);		// sub_cmd
@@ -958,7 +1023,9 @@ static inline int check_calibration_status(sensor_state_t *p_sensor_state, int s
 		return 0;
 }
 
-static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
+static int set_calibration_status(sensor_state_t *p_sensor_state,
+					session_state_t *p_session_state,
+					int status,
 					struct cmd_calibration_param *param)
 {
 	if (p_sensor_state == NULL) {
@@ -983,7 +1050,7 @@ static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
 		if (param_temp.calibrated == SUBCMD_CALIBRATION_TRUE) {
 			/* Set calibration parameter to psh_fw */
 			param_temp.sub_cmd = SUBCMD_CALIBRATION_SET;
-			set_calibration(p_sensor_state, &param_temp);
+			set_calibration(p_sensor_state, p_session_state, &param_temp);
 
 			/* Clear 0~30bit, 31bit is for CALIBRATION_NEED_STORE,
 			 * 31bit can coexist with other bits */
@@ -1005,7 +1072,7 @@ static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
 	} else if (status & CALIBRATION_RESET) {
 		/* Start the calibration */
 		if (param && param->sub_cmd == SUBCMD_CALIBRATION_START) {
-			set_calibration(p_sensor_state, param);
+			set_calibration(p_sensor_state, p_session_state, param);
 
 			memset(param, 0, sizeof(struct cmd_calibration_param));
 			/* clear the parameter file */
@@ -1022,11 +1089,11 @@ static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
 		 * In this status, can only send SUBCMD_CALIBRATION_STOP
 		 */
 		if (param && param->sub_cmd == SUBCMD_CALIBRATION_STOP)
-			set_calibration(p_sensor_state, param);
+			set_calibration(p_sensor_state, p_session_state, param);
 	} else if (status & CALIBRATION_DONE) {
 		if (param && param->calibrated == SUBCMD_CALIBRATION_TRUE && param->sub_cmd == SUBCMD_CALIBRATION_SET) {
 			/* Set calibration parameter to psh_fw */
-			set_calibration(p_sensor_state, param);
+			set_calibration(p_sensor_state, p_session_state, param);
 
 			p_sensor_state->calibration_status &=
 							CALIBRATION_NEED_STORE;
@@ -1052,21 +1119,18 @@ static int set_calibration_status(sensor_state_t *p_sensor_state, int status,
 static session_state_t* get_session_state_with_trans_id(
 					unsigned char trans_id)
 {
-	sensor_state_t *p_sensor_state = get_sensor_state_with_name("EVENT");
 	session_state_t *p_session_state;
+	int i;
 
-	if (p_sensor_state == NULL) {
-		log_message(DEBUG, "%s: p_sensor_state is NULL \n", __func__);
-		return NULL;
-	}
+	for (i = 0; i < current_sensor_index; i ++) {
+		p_session_state = sensor_list[i].list;
 
-	p_session_state = p_sensor_state->list;
+		while (p_session_state != NULL) {
+			if (p_session_state->trans_id == trans_id)
+				return p_session_state;
 
-	while (p_session_state != NULL) {
-		if (p_session_state->trans_id == trans_id)
-			return p_session_state;
-
-		p_session_state = p_session_state->next;
+			p_session_state = p_session_state->next;
+		}
 	}
 
 	return NULL;
@@ -1090,6 +1154,8 @@ static unsigned char allocate_trans_id()
 	if (trans_id == MAX_UNSIGNED_CHAR)
 		rewind = 1;
 
+	log_message(DEBUG, "allocate trans_id=%d\n", trans_id);
+
 	return trans_id;
 }
 
@@ -1105,9 +1171,7 @@ static void handle_add_event(session_state_t *p_session_state, cmd_event* p_cmd)
 	struct cmd_event_param *evt_param = (struct cmd_event_param *)p_cmd->buf;
 	int i, num = evt_param->num;
 
-	trans_id = allocate_trans_id();
-
-	p_session_state->trans_id = trans_id;
+	trans_id = p_session_state->trans_id;
 
 	/* struct ia_cmd { u8 tran_id; u8 cmd_id; u8 sensor_id; char param[] }; */
 	len = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d ", trans_id, cmd_type_to_cmd_id[CMD_ADD_EVENT], 0);
@@ -1173,7 +1237,7 @@ static void handle_clear_event(session_state_t *p_session_state)
 		return;
 
 	/* struct ia_cmd { u8 tran_id; u8 cmd_id; u8 sensor_id; char param[] }; */
-	len = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d ", 0, cmd_type_to_cmd_id[CMD_CLEAR_EVENT], 0);
+	len = snprintf(cmd_string, MAX_STRING_SIZE, "%d %d %d ", p_session_state->trans_id, cmd_type_to_cmd_id[CMD_CLEAR_EVENT], 0);
 	/* struct clear_evt_param {u8 evt_id}; */
 	len += snprintf(cmd_string + len, MAX_STRING_SIZE - len, "%d ", p_session_state->event_id);
 
@@ -1224,9 +1288,9 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 							&p_session_state);
 	cmd_t cmd = p_cmd->cmd;
 
-	*reply_now = 1;
+	*reply_now = 0;
 
-	if (ret != 0)
+	if (ret != 0 || !p_sensor_state || !p_session_state)
 		return ERR_SESSION_NOT_EXIST;
 
 	log_message(DEBUG, "[%s] Ready to handle command %d\n", __func__, cmd);
@@ -1241,13 +1305,11 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		stop_streaming(p_sensor_state, p_session_state);
 	} else if (cmd == CMD_GET_SINGLE) {
 		get_single(p_sensor_state, p_session_state);
-		*reply_now = 0;
 	} else if (cmd == CMD_GET_CALIBRATION) {
 		if (p_sensor_state->support_calibration == 0)
 			return ERROR_WRONG_ACTION_ON_SENSOR_TYPE;
 
 		get_calibration(p_sensor_state, p_session_state);
-		*reply_now = 0;
 	} else if (cmd == CMD_SET_CALIBRATION) {
 		char *p = (char*)p_cmd;
 		struct cmd_calibration_param *cal_param;
@@ -1263,20 +1325,19 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		cal_param = (struct cmd_calibration_param*)(p + sizeof(cmd_event));
 
 		if (cal_param->sub_cmd == SUBCMD_CALIBRATION_SET)
-			set_calibration_status(p_sensor_state,
+			set_calibration_status(p_sensor_state, p_session_state,
 						CALIBRATION_DONE | CALIBRATION_NEED_STORE,
 						cal_param);
 		else if (cal_param->sub_cmd == SUBCMD_CALIBRATION_START)
-			set_calibration_status(p_sensor_state,
+			set_calibration_status(p_sensor_state, p_session_state,
 						CALIBRATION_RESET | CALIBRATION_NEED_STORE,
 						cal_param);
 		else if (cal_param->sub_cmd == SUBCMD_CALIBRATION_STOP)
-			set_calibration_status(p_sensor_state,
+			set_calibration_status(p_sensor_state, p_session_state,
 						CALIBRATION_IN_PROGRESS,
 						cal_param);
 	} else if (cmd == CMD_ADD_EVENT) {
 		handle_add_event(p_session_state, p_cmd);
-		*reply_now = 0;
 	} else if (cmd == CMD_CLEAR_EVENT) {
 		if (p_session_state->event_id == p_cmd->parameter)
 			handle_clear_event(p_session_state);
@@ -1294,16 +1355,17 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 			return ERR_CMD_NOT_SUPPORT;
 
 		for (i = 0; i < out_option->len; i++) {
-			send_set_property(p_sensor_state, out_option->items[i].prop, out_option->items[i].size, (unsigned char *)out_option->items[i].value);
+			send_set_property(p_sensor_state, p_session_state, out_option->items[i].prop, out_option->items[i].size, (unsigned char *)out_option->items[i].value);
 		}
 		ctx_option_release(out_option);
-
-	}
 #endif
 #ifndef ENABLE_CONTEXT_ARBITOR
-		send_set_property(p_sensor_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);	// property type, property size, property value
-	}
+		send_set_property(p_sensor_state, p_session_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);	// property type, property size, property value
 #endif
+	} else if (cmd == CMD_GET_PROPERTY) {
+		send_get_property(p_sensor_state, p_session_state, p_cmd->parameter, p_cmd->buf);
+	}
+
 	return SUCCESS;
 }
 
@@ -1346,6 +1408,7 @@ static void handle_message(int fd, char *message)
 		memset(p_session_state, 0, sizeof(session_state_t));
 		p_session_state->datafd = fd;
 		p_session_state->session_id = session_id;
+		p_session_state->trans_id = allocate_trans_id();
 
 #ifdef ENABLE_CONTEXT_ARBITOR
 		p_session_state->handle = ctx_open_session(p_sensor_state->name);
@@ -1356,7 +1419,7 @@ static void handle_message(int fd, char *message)
 			 * So calibration init is needed
 			 */
 
-			set_calibration_status(p_sensor_state, CALIBRATION_INIT, NULL);
+			set_calibration_status(p_sensor_state, NULL, CALIBRATION_INIT, NULL);
 		}
 
 		p_session_state->next = p_sensor_state->list;
@@ -1552,6 +1615,7 @@ struct cmd_resp {
 	char buf[0];
 } __attribute__ ((packed));
 
+
 static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 						int size)
 {
@@ -1580,6 +1644,52 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 		send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
 #endif
 	}
+}
+
+#define MAX_CMD_ACK_EXTEA_SIZE	1024
+struct resp_cmd_ack {
+	unsigned char cmd_id;
+	int ret;
+	char extra[0];
+} __attribute__ ((packed));
+
+static void dispatch_cmd_ack(struct cmd_resp *p_cmd_resp)
+{
+	unsigned char buf[sizeof(cmd_ack_event) + MAX_CMD_ACK_EXTEA_SIZE] = {0};
+	unsigned char trans_id = p_cmd_resp->tran_id;
+	struct resp_cmd_ack *resp_ack;
+	cmd_ack_event *p_cmd_ack = (cmd_ack_event *)buf;
+	session_state_t *p_session_state;
+
+	if (trans_id == 0)
+		return;
+
+	resp_ack = (struct resp_cmd_ack *)p_cmd_resp->buf;
+	if (resp_ack->ret == E_CMD_ASYNC)
+		return;
+
+	p_session_state = get_session_state_with_trans_id(trans_id);
+	if (!p_session_state)
+		return;
+
+	p_cmd_ack->event_type = EVENT_CMD_ACK;
+	p_cmd_ack->ret = resp_ack->ret;
+	if (!p_cmd_ack->ret)
+		if (p_session_state->get_single || p_session_state->get_calibration)
+			p_cmd_ack->ret = E_ANOTHER_REPLY;
+
+	if (p_session_state->get_property) {
+		if (p_cmd_resp->data_len <= sizeof(struct resp_cmd_ack))
+			log_message(CRITICAL, "Get_property not data, trans_id=%d\n", trans_id);
+		else {
+			p_cmd_ack->buf_len = p_cmd_resp->data_len - sizeof(struct resp_cmd_ack);
+			memcpy(p_cmd_ack->buf, resp_ack->extra, p_cmd_ack->buf_len);
+		}
+
+		p_session_state->get_property = 0;
+	}
+
+	send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + p_cmd_ack->buf_len, 0);
 }
 
 static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
@@ -1756,7 +1866,7 @@ fail:
 
 	if (param->calibrated == SUBCMD_CALIBRATION_TRUE) {
 		param->sub_cmd = SUBCMD_CALIBRATION_SET;
-		set_calibration_status(p_sensor_state, CALIBRATION_DONE | CALIBRATION_NEED_STORE, param);
+		set_calibration_status(p_sensor_state, NULL, CALIBRATION_DONE | CALIBRATION_NEED_STORE, param);
 	} else {
 		// SUBCMD_CALIBRATION_FALSE
 		struct cmd_calibration_param param_temp;
@@ -1906,11 +2016,13 @@ static void dispatch_data()
 				p_cmd_resp->cmd_type, p_cmd_resp->sensor_id,
 				p_cmd_resp->data_len);
 
-		if ((p_cmd_resp->cmd_type == RESP_GET_SINGLE) || (p_cmd_resp->cmd_type == RESP_BIST_RESULT))
+		if (p_cmd_resp->cmd_type == RESP_CMD_ACK)
+			dispatch_cmd_ack(p_cmd_resp);
+		else if ((p_cmd_resp->cmd_type == RESP_GET_SINGLE) || (p_cmd_resp->cmd_type == RESP_BIST_RESULT))
 			dispatch_get_single(p_cmd_resp);
-		else if (p_cmd_resp->cmd_type == RESP_STREAMING) {
+		else if (p_cmd_resp->cmd_type == RESP_STREAMING)
 			dispatch_streaming(p_cmd_resp);
-		} else if (p_cmd_resp->cmd_type == RESP_PSH_EVT) {
+		else if (p_cmd_resp->cmd_type == RESP_PSH_EVT) {
 			#define PSH_EVT_ID_FLUSH_DONE ((unsigned char)1)
 			struct resp_psh_evt {
 				unsigned char evt_id;
@@ -2002,7 +2114,7 @@ static void remove_session_by_fd(int fd)
 			if (ctx_close_session(p_session_state->handle, &out_option) == 1) {
 				if (out_option != NULL) {
 					for (j = 0; j < out_option->len; ++j) {
-						send_set_property(sensor_list + i, out_option->items[j].prop,
+						send_set_property(sensor_list + i, p_session_state, out_option->items[j].prop,
 							out_option->items[j].size, (unsigned char *)out_option->items[j].value);
 					}
 					ctx_option_release(out_option);

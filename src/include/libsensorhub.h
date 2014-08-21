@@ -249,6 +249,9 @@ short psh_get_event_id(handle_t handle);
 error_t psh_set_property(handle_t handle, property_type prop_type, void *value);
 error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int size, void *value);
 
+/* get properties */
+error_t psh_get_property_with_size(handle_t handle, int size, void *value, int *outlen, void *outbuf);
+
 /* data format of each sensor type */
 struct accel_data {
 	int64_t ts;

@@ -67,6 +67,16 @@ LOCAL_MODULE := bist_test
 include $(BUILD_EXECUTABLE)
 
 #
+# test_get_property.c
+#
+include $(CLEAR_VARS)
+LOCAL_MODULE_TAGS := optional
+LOCAL_SRC_FILES := src/tests/test_get_property.c
+LOCAL_SHARED_LIBRARIES := libsensorhub
+LOCAL_MODULE := test_get_property
+include $(BUILD_EXECUTABLE)
+
+#
 # compass calibration test.
 #
 include $(CLEAR_VARS)

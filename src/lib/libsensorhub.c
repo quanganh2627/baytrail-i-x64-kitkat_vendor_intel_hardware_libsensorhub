@@ -30,23 +30,46 @@ typedef struct {
 static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_recv,
                                         size_t len_send, size_t len_recv, pthread_mutex_t *lock)
 {
-        int err, ret;
-        err = pthread_mutex_lock(lock);
-        if (err)
-                ALOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
-        ret = send(sockfd, buf_send, len_send, 0);
+	int err, ret;
+	int event_type;
+	struct timeval timeout = {5, 0};
+	cmd_ack_event *p_cmd_ack;
+
+	err = pthread_mutex_lock(lock);
+	if (err)
+		LOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
+
+	ret = send(sockfd, buf_send, len_send, 0);
 	if (ret <= 0) {
 		ret = ERROR_MESSAGE_NOT_SENT;
-                goto err_send;
-        }
+		goto err_send;
+	}
 
-        ret = recv(sockfd, buf_recv, len_recv, 0);
+	/* set receive timeout to 5 sec. */
+	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+
+	ret = recv(sockfd, buf_recv, len_recv, 0);
 	if (ret <= 0) {
 		ret = ERROR_CAN_NOT_GET_REPLY;
-                goto err_recv;
-        }
+		goto err_recv;
+	}
 
-        ret = 0;
+	event_type = *((int *)buf_recv);
+	if (event_type != EVENT_CMD_ACK) {
+		ret = ERROR_CAN_NOT_GET_REPLY;
+		goto err_recv;
+	}
+
+	p_cmd_ack = (cmd_ack_event *)buf_recv;
+	if (p_cmd_ack->ret == E_ANOTHER_REPLY) {
+		ret = recv(sockfd, buf_recv, len_recv, 0);
+		if (ret <= 0) {
+			ret = ERROR_CAN_NOT_GET_REPLY;
+			goto err_recv;
+		}
+	}
+
+	ret = 0;
 
 err_send:
 err_recv:
@@ -270,7 +293,7 @@ error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer
 
 	p_cmd_ack = (cmd_ack_event *)message;
 
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_DATA_RATE_NOT_SUPPORTED;
 
 	return ERROR_NONE;
@@ -304,7 +327,7 @@ error_t psh_flush_streaming(handle_t handle, unsigned int data_unit_size)
 		return ERROR_CAN_NOT_GET_REPLY;
 
 	p_cmd_ack = (cmd_ack_event *)message;
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_DATA_RATE_NOT_SUPPORTED;
 
 	return ERROR_NONE;
@@ -335,7 +358,7 @@ error_t psh_stop_streaming(handle_t handle)
 
 	p_cmd_ack = (cmd_ack_event *)message;
 
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_NOT_AVAILABLE;
 
 	return ERROR_NONE;
@@ -366,7 +389,7 @@ error_t psh_get_single(handle_t handle, void *buf, int buf_size)
 
 	p_cmd_ack = (cmd_ack_event *)message;
 
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_NOT_AVAILABLE;
 
 	if (p_cmd_ack->buf_len < buf_size)
@@ -426,7 +449,7 @@ error_t psh_set_calibration(handle_t handle,
 
 	p_cmd_ack = (cmd_ack_event *)message;
 
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_NOT_AVAILABLE;
 
 	/*	No non-status return message ...
@@ -468,7 +491,7 @@ error_t psh_get_calibration(handle_t handle,
 
 	p_cmd_ack = (cmd_ack_event *)message;
 
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_NOT_AVAILABLE;
 
 	assert(p_cmd_ack->buf_len == sizeof(*param));
@@ -572,7 +595,7 @@ error_t psh_add_event(handle_t handle)
 		return ERROR_CAN_NOT_GET_REPLY;
 
 	p_cmd_ack = (cmd_ack_event *)message;
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_NOT_AVAILABLE;
 
 	if (p_cmd_ack->buf_len > 0)
@@ -612,7 +635,7 @@ error_t psh_clear_event(handle_t handle)
 		return ERROR_CAN_NOT_GET_REPLY;
 
 	p_cmd_ack = (cmd_ack_event *)message;
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_NOT_AVAILABLE;
 
 	return ERROR_NONE;
@@ -671,8 +694,48 @@ error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int
 		return ERROR_CAN_NOT_GET_REPLY;
 
 	p_cmd_ack = (cmd_ack_event *)message;
-	if (p_cmd_ack->ret != SUCCESS)
+	if (p_cmd_ack->ret != E_SUCCESS)
 		return ERROR_DATA_RATE_NOT_SUPPORTED;
+
+	return ERROR_NONE;
+}
+
+error_t psh_get_property_with_size(handle_t handle, int size, void *value, int *outlen, void *outbuf)
+{
+	session_context_t *session_context = (session_context_t *)handle;
+	cmd_event *cmd;
+	int ret, event_type;
+	char message[MAX_MESSAGE_LENGTH];
+	cmd_ack_event *p_cmd_ack;
+
+	if (session_context == NULL)
+		return ERROR_NOT_AVAILABLE;
+
+	cmd = malloc(sizeof(cmd_event) + size);
+	if (cmd == NULL)
+		return ERROR_NOT_AVAILABLE;
+
+	cmd->event_type = EVENT_CMD;
+	cmd->cmd = CMD_GET_PROPERTY;
+	cmd->parameter = size;
+	memcpy(cmd->buf, value, size);
+
+	ret = psh_send_recv_cmd_locked(session_context->ctlfd, cmd, message,
+                                       sizeof(cmd_event) + size, MAX_MESSAGE_LENGTH, &session_context->ctlfd_lock);
+	free(cmd);
+	if (ret)
+		return ret;
+
+	event_type = *((int *) message);
+	if (event_type != EVENT_CMD_ACK)
+		return ERROR_CAN_NOT_GET_REPLY;
+
+	p_cmd_ack = (cmd_ack_event *)message;
+	if (p_cmd_ack->ret != E_SUCCESS)
+		return ERROR_NOT_AVAILABLE;
+
+	*outlen = p_cmd_ack->buf_len;
+	memcpy(outbuf, p_cmd_ack->buf, p_cmd_ack->buf_len);
 
 	return ERROR_NONE;
 }
