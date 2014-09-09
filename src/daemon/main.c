@@ -1360,6 +1360,10 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		for (i = 0; i < out_option->len; i++) {
 			send_set_property(p_sensor_state, p_session_state, out_option->items[i].prop, out_option->items[i].size, (unsigned char *)out_option->items[i].value);
 		}
+
+		if (out_option->len == 0)
+			*reply_now = 1;
+
 		ctx_option_release(out_option);
 #endif
 #ifndef ENABLE_CONTEXT_ARBITOR
