@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <hardware_legacy/power.h>
 #include <cutils/sockets.h>
+#include <signal.h>
 
 #include "../include/socket.h"
 #include "../include/utils.h"
@@ -1393,7 +1394,9 @@ static void handle_message(int fd, char *message)
 		if ((p_sensor_state = get_sensor_state_with_name(p_hello_with_sensor_type->name)) == NULL) {
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
-			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
+			if (send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+                        }
 			ALOGE("handle_message(): sensor type %s not supported \n", p_hello_with_sensor_type->name);
 			return;
 		}
@@ -1404,8 +1407,10 @@ static void handle_message(int fd, char *message)
 		hello_with_sensor_type_ack.event_type =
 					EVENT_HELLO_WITH_SENSOR_TYPE_ACK;
 		hello_with_sensor_type_ack.session_id = session_id;
-		send(fd, &hello_with_sensor_type_ack,
-			sizeof(hello_with_sensor_type_ack), 0);
+		if (send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0) < 0) {
+                        ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_hello_with_sensor_type->name);
+                        return;
+                }
 
 		p_session_state = malloc(sizeof(session_state_t));
 		if (p_session_state == NULL) {
@@ -1450,8 +1455,10 @@ static void handle_message(int fd, char *message)
 		hello_with_session_id_ack.event_type =
 					EVENT_HELLO_WITH_SESSION_ID_ACK;
 		hello_with_session_id_ack.ret = SUCCESS;
-		send(fd, &hello_with_session_id_ack,
-				sizeof(hello_with_session_id_ack), 0);
+		if (send(fd, &hello_with_session_id_ack, sizeof(hello_with_session_id_ack), 0) < 0) {
+                        ALOGE("%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+                        return;
+                }
 
 	} else if (event_type == EVENT_CMD) {
 		ret_t ret;
@@ -1467,7 +1474,10 @@ static void handle_message(int fd, char *message)
 
 		cmd_ack.event_type = EVENT_CMD_ACK;
 		cmd_ack.ret = ret;
-		send(fd, &cmd_ack, sizeof(cmd_ack), 0);
+		if (send(fd, &cmd_ack, sizeof(cmd_ack), 0) < 0) {
+                        ALOGE("%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+                        return;
+                }
 	} else {
 		/* TODO: unknown message and drop it */
 	}
@@ -1643,12 +1653,21 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 		int out_size;
 
 		if (p_session_state->handle == NULL) {
-			send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
+			if (send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 		} else if (ctx_dispatch_data(p_session_state->handle, data, size, &out_data, &out_size) == 1) {
-			send(p_session_state->datafd, out_data, out_size, MSG_NOSIGNAL|MSG_DONTWAIT);
+			if (send(p_session_state->datafd, out_data, out_size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 		}
 #else
-		send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
+		if (send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                }
 #endif
 	}
 }
@@ -1696,7 +1715,10 @@ static void dispatch_cmd_ack(struct cmd_resp *p_cmd_resp)
 		p_session_state->get_property = 0;
 	}
 
-	send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + p_cmd_ack->buf_len, 0);
+	if (send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + p_cmd_ack->buf_len, 0) < 0) {
+                ALOGE("%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+                return;
+        }
 }
 
 static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
@@ -1740,8 +1762,10 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			}
 			memcpy(p_cmd_ack->buf, p_cmd_resp->buf, p_cmd_resp->data_len + 2);
 
-			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
-						+ p_cmd_resp->data_len + 2, 0);
+			if (send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + p_cmd_resp->data_len + 2, 0) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 		} else if (strncmp(p_sensor_state->name, "BIST", SNR_NAME_MAX_LEN) == 0) {
 			int i;
 			p_cmd_ack = malloc(sizeof(cmd_ack_event) + sizeof(struct bist_data));
@@ -1766,8 +1790,10 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 					p_cmd_ack->buf[i] = BIST_RET_NOSUPPORT;
 			}
 
-			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
-						+ sizeof(struct bist_data), 0);
+			if (send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + sizeof(struct bist_data), 0) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 		} else {
 			p_cmd_ack = malloc(sizeof(cmd_ack_event)
 						+ p_cmd_resp->data_len);
@@ -1780,9 +1806,10 @@ static void dispatch_get_single(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack->buf_len = p_cmd_resp->data_len;
 			memcpy(p_cmd_ack->buf, p_cmd_resp->buf, p_cmd_resp->data_len);
 
-			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
-						+ p_cmd_resp->data_len, 0);
-
+			if (send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + p_cmd_resp->data_len, 0) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 		}
 			free(p_cmd_ack);
 fail:
@@ -1814,7 +1841,10 @@ static void dispatch_flush()
 
 		for (; p_session_state != NULL; p_session_state = p_session_state->next) {
 			if ((p_session_state->flush_streaming != 0) && (p_session_state->flush_streaming <= MAX_UNIT_SIZE)) {
-				send(p_session_state->datafd, flush_completion_frame, p_session_state->flush_streaming, MSG_NOSIGNAL|MSG_DONTWAIT);
+				if (send(p_session_state->datafd, flush_completion_frame, p_session_state->flush_streaming, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+                                        ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), sensor_list[i].name);
+                                        return;
+                                }
 				p_session_state->flush_streaming = 0;
 			}
 		}
@@ -1860,8 +1890,10 @@ static void handle_calibration(struct cmd_calibration_param * param, unsigned ch
 		p_cal_info = (struct cmd_calibration_param *)p_cmd_ack->buf;
 		*p_cal_info = *param;
 
-		send(p_session_state->ctlfd, p_cmd_ack,
-				sizeof(cmd_ack_event) + sizeof(struct cmd_calibration_param), 0);
+		if (send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + sizeof(struct cmd_calibration_param), 0) < 0) {
+                        ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                        return;
+                }
 
 		free(p_cmd_ack);
 fail:
@@ -1917,8 +1949,10 @@ static void handle_add_event_resp(struct cmd_resp *p_cmd_resp)
 			p_cmd_ack->ret = SUCCESS;
 			p_cmd_ack->buf_len = p_cmd_resp->data_len;
 			memcpy(p_cmd_ack->buf, p_cmd_resp->buf, p_cmd_resp->data_len);
-			send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event)
-				+ p_cmd_resp->data_len, 0);
+			if (send(p_session_state->ctlfd, p_cmd_ack, sizeof(cmd_ack_event) + p_cmd_resp->data_len, 0) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 
 			log_message(DEBUG, "event id is %d \n", p_cmd_resp->buf[0]);
 			free(p_cmd_ack);
@@ -1959,7 +1993,10 @@ static void dispatch_event(struct cmd_resp *p_cmd_resp)
 		p_session_state = p_session_state->next) {
 		if (event_id == p_session_state->event_id) {
 //			write(p_session_state->datafd, p_cmd_resp->buf, p_cmd_resp->data_len);
-			send(p_session_state->datafd, p_cmd_resp->buf, p_cmd_resp->data_len, MSG_NOSIGNAL);
+			if (send(p_session_state->datafd, p_cmd_resp->buf, p_cmd_resp->data_len, MSG_NOSIGNAL) < 0) {
+                                ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), p_sensor_state->name);
+                                return;
+                        }
 			break;
 		}
 	}
@@ -2409,8 +2446,12 @@ int main(int argc, char **argv)
 
 	memset(flush_completion_frame, 0xff, sizeof(flush_completion_frame));
 
+        /* Ignore SIGPIPE */
+        signal(SIGPIPE, SIG_IGN);
+
 	while (1) {
 		reset_sensorhub();
+
 		if (platform == BAYTRAIL)
 			/* if fwupdat.flag is not exist or update failed, update fw */
 			system(FWUPDATE_SCRIPT BYT_FW);
