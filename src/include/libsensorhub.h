@@ -59,6 +59,7 @@ typedef enum {
 	SENSOR_DIRECTIONAL_SHAKING,
 	SENSOR_GESTURE_TILT,
 	SENSOR_GESTURE_SNAP,
+	SENSOR_PICKUP,
 
 	SENSOR_BIST,
 
@@ -364,6 +365,11 @@ struct gesture_snap_data {
 struct stap_data {
 	int64_t ts;
 	short stap;
+} __attribute__ ((packed));
+
+struct pickup_data {
+	int64_t ts;
+	short pickup;
 } __attribute__ ((packed));
 
 struct pz_data {
