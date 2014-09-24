@@ -131,7 +131,7 @@ static void dispatch_data()
 		buf = (char *)malloc(128 * 1024);
 
 	if (buf == NULL) {
-		LOGE("dispatch_data(): malloc failed \n");
+		ALOGE("dispatch_data(): malloc failed \n");
 		return;
 	}
 
@@ -298,10 +298,10 @@ static void get_status()
 		exit(EXIT_FAILURE);
 	}
 
-	LOGI("cmd to sysfs is: %s\n", cmd_string);
+	ALOGI("cmd to sysfs is: %s\n", cmd_string);
 
 	ret = write(ctlfd, cmd_string, size);
-	LOGI("cmd return value is %d\n", ret);
+	ALOGI("cmd return value is %d\n", ret);
 	if (ret < 0)
 		exit(EXIT_FAILURE);
 
@@ -338,7 +338,7 @@ static void get_status()
 
 		snr_info = (struct sensor_info *)buf;
 
-		LOGI("sensor id is %d, name is %s, freq_max is %d, current_sensor_index is %d \n", snr_info->id, snr_info->name, snr_info->freq_max, current_sensor_index);
+		ALOGI("sensor id is %d, name is %s, freq_max is %d, current_sensor_index is %d \n", snr_info->id, snr_info->name, snr_info->freq_max, current_sensor_index);
 
 		sensor_list[current_sensor_index].hw_sensor_id = snr_info->id;
 		sensor_list[current_sensor_index].freq_max = snr_info->freq_max;
@@ -358,7 +358,7 @@ static void get_status()
 	current_sensor_index++;
 
 	gettimeofday(&tv1, NULL);
-	LOGI("latency of is get_status() is "
+	ALOGI("latency of is get_status() is "
 		"%ld \n", tv1.tv_usec - tv.tv_usec);
 
 	if (ret < 0)
@@ -493,7 +493,7 @@ void reset_hw_layer()
 		/* detect the device node */
 	dirp = opendir("/sys/class/hwmon");
 	if (dirp == NULL) {
-		LOGE("can't find device node \n");
+		ALOGE("can't find device node \n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -531,7 +531,7 @@ void reset_hw_layer()
 	}
 
 	if (found == 0) {
-		LOGE("can't find device node \n");
+		ALOGE("can't find device node \n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -541,7 +541,7 @@ void reset_hw_layer()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/control", entry->d_name);
 	ctlfd = open(node_path, O_WRONLY);
 	if (ctlfd == -1) {
-		LOGE("open %s failed, errno is %d\n",
+		ALOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -552,7 +552,7 @@ void reset_hw_layer()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/data", entry->d_name);
 	datafd = open(node_path, O_RDONLY);
 	if (datafd == -1) {
-		LOGE("open %s failed, errno is %d\n",
+		ALOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -561,7 +561,7 @@ void reset_hw_layer()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/data_size", entry->d_name);
 	datasizefd = open(node_path, O_RDONLY);
 	if (datasizefd == -1) {
-		LOGE("open %s failed, errno is %d\n",
+		ALOGE("open %s failed, errno is %d\n",
 				node_path, errno);
 		exit(EXIT_FAILURE);
 	}
@@ -573,7 +573,7 @@ void reset_hw_layer()
 	snprintf(node_path, MAX_STRING_SIZE, "/sys/class/hwmon/%s/device/fw_version", entry->d_name);
 	fwversionfd = open(node_path, O_RDONLY);
 	if (fwversionfd == -1) {
-		LOGE("open %s failed, errno is %d\n",
+		ALOGE("open %s failed, errno is %d\n",
 			node_path, errno);
 		exit(EXIT_FAILURE);
 	}

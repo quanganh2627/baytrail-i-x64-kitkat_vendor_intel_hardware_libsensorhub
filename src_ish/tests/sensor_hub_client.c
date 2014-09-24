@@ -827,7 +827,7 @@ int main(int argc, char **argv)
 						data_rate, buffer_delay);
 #undef LOG_TAG
 #define LOG_TAG "sensorhub_test"
-	LOGD("sensor_name is %s, data_rate is %d Hz, buffer_delay is %d ms\n",
+	ALOGD("sensor_name is %s, data_rate is %d Hz, buffer_delay is %d ms\n",
 										sensor_name, data_rate, buffer_delay);
 
 	handle = psh_open_session_with_name(sensor_name);

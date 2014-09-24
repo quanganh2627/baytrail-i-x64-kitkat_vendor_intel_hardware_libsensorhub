@@ -37,7 +37,7 @@ static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_re
 
 	err = pthread_mutex_lock(lock);
 	if (err)
-		LOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
+		ALOGE("%s: Cannot lock ctlfd! error: %d", __FUNCTION__, err);
 
 	ret = send(sockfd, buf_send, len_send, 0);
 	if (ret <= 0) {
