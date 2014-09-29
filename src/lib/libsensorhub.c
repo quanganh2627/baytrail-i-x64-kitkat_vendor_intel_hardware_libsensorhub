@@ -751,7 +751,10 @@ error_t run_bist(struct bist_data *bist)
 
 	size = psh_get_single(handle, bist, sizeof(struct bist_data));
 	if (size <= 0)
+	{
+		psh_close_session(handle);
 		return ERROR_NOT_AVAILABLE;
+	}
 
 
 	psh_close_session(handle);
