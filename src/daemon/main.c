@@ -832,7 +832,9 @@ static void get_calibration(sensor_state_t *p_sensor_state,
 		return;
 	}
 
-	if (p_session_state)
+	if (p_session_state == NULL)
+		trans_id = 0;
+	else
 		trans_id = p_session_state->trans_id;
 
 	len = snprintf (cmdstring, MAX_STRING_SIZE, "%d %d %d %d",
