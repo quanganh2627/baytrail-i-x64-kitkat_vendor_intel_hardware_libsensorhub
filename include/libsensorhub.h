@@ -48,16 +48,46 @@ typedef enum {
 	SENSOR_GEOMAGNETIC_ROTATION_VECTOR,
 	SENSOR_6DOFAG,
 	SENSOR_6DOFAM,
-	SENSOR_LIFT_LOOK,
+	SENSOR_LIFT,
 	SENSOR_DTWGS,
 	SENSOR_GESTURE_HMM,
 	SENSOR_GESTURE_EARTOUCH,
 
+	SENSOR_PEDESTRIAN_DEAD_RECKONING,
+	SENSOR_INSTANT_ACTIVITY,
+	SENSOR_UNCAL_COMP,
+	SENSOR_UNCAL_GYRO,
+	SENSOR_UNCAL_ACC,
+	SENSOR_MOTION_DETECT,
+
 	SENSOR_BIST,
 
-	SENSOR_EVENT,
 	SENSOR_MAX
-} psh_sensor_t;
+} ish_sensor_t;
+
+typedef enum {
+	USE_CASE_HAL = 0,	// only can be used for android sensor hal
+	USE_CASE_CSP,		// not only for sensor hal, but also for csp
+	USE_CASE_HUB		// all sensor hub
+} ish_usecase_t;
+
+#define SNR_NAME_MAX_LEN	5
+#define VEND_NAME_MAX_LEN	20
+#define MAX_AXIS		6
+typedef struct {
+	char name[SNR_NAME_MAX_LEN + 1];	// sensor name
+	char vendor[VEND_NAME_MAX_LEN + 1];	// sensor vendor's name
+	ish_sensor_t sensor_type;		// sensor type, ACCEL, COMPSS, GYRO ...
+	ish_usecase_t use_case;
+	unsigned int version;			// sensor version
+	unsigned int min_delay;			// sensor's minimum delay
+	unsigned int axis_num;			// sensor's axises
+	float axis_scale[MAX_AXIS];		// sensor's individual axis scale
+	float max_range;			// sensor's maximum value range
+	float resolution;			// sensor's resolution
+	float power;				// senosr's power
+	void *plat_data;			// Sensor's private data which related to different platform
+} sensor_info_t;
 
 typedef enum {
 	ERROR_NONE = 0,
@@ -69,14 +99,6 @@ typedef enum {
 	ERROR_WRONG_PARAMETER = -6,
 	ERROR_PROPERTY_NOT_SUPPORTED = -7
 } error_t;
-
-enum {
-	OP_EQUAL = 0,
-	OP_GREAT,
-	OP_LESS,
-	OP_BETWEEN,
-	OP_MAX
-};
 
 typedef enum {
 	PROP_GENERIC_START = 0,
@@ -135,6 +157,7 @@ typedef enum {
 	PROP_ACT_MODE_NCYCLE,
 	PROP_ACT_MODE_ONCHANGE
 } property_act_mode;
+
 typedef enum {
 	PROP_PEDOPLUS_MODE_NONCHANGE,
 	PROP_PEDOPLUS_MODE_ONCHANGE,
@@ -146,210 +169,238 @@ typedef enum {
 	NO_STOP_NO_REPORT_WHEN_SCREEN_OFF = 2,
 } streaming_flag;
 
-typedef enum {
-	AND = 0,
-	OR = 1,
-} relation;
-
 typedef void * handle_t;
 
 /* return NULL if failed */
-handle_t psh_open_session(psh_sensor_t sensor_type);
-//handle_t psh_open_session_with_name(char *name);
+handle_t ish_open_session(ish_sensor_t sensor_type);
+handle_t ish_open_session_with_name(const char *name);
 
-void psh_close_session(handle_t handle);
+void ish_close_session(handle_t handle);
 
 /* return 0 when success
    data_rate: the unit is HZ;
-   buffer_delay: the unit is ms. It's used to tell psh that application
+   buffer_delay: the unit is ms. It's used to tell ish that application
    can't wait more than 'buffer_delay' ms to get data. In another word
    data can arrive before 'buffer_delay' ms elaps.
    So every time the data is returned, the data size may vary and the
    application need to buffer the data by itself */
-error_t psh_start_streaming(handle_t handle, int data_rate, int buffer_delay);
+error_t ish_start_streaming(handle_t handle, int data_rate, int buffer_delay);
 
 /* flag: 2 means no_stop_no_report when screen off; 1 means no_stop when screen off; 0 means stop when screen off */
-error_t psh_start_streaming_with_flag(handle_t handle, int data_rate, int buffer_delay, streaming_flag flag);
+error_t ish_start_streaming_with_flag(handle_t handle, int data_rate, int buffer_delay, streaming_flag flag);
 
-error_t psh_stop_streaming(handle_t handle);
+#define MAX_UNIT_SIZE 128
+error_t ish_flush_streaming(handle_t handle, unsigned int data_unit_size);
 
-/* return data size if success; error_t if failure */
-error_t psh_get_single(handle_t handle, void *buf, int buf_size);
+error_t ish_stop_streaming(handle_t handle);
 
-struct cmd_calibration_param;
-/* set the calibration data of compass sensor
-   If param not NULL, it will set calibration parameters.  */
-error_t psh_set_calibration(handle_t handle, struct cmd_calibration_param * param);
-
-error_t psh_get_calibration(handle_t handle, struct cmd_calibration_param * param);
 /* return -1 if failed */
-int psh_get_fd(handle_t handle);
-
-/* relation: 0, AND; 1, OR; default is AND */
-error_t psh_event_set_relation(handle_t handle, relation relation);
-
-struct sub_event;
-error_t psh_event_append(handle_t handle, struct sub_event *sub_evt);
-
-error_t psh_add_event(handle_t handle);
-
-error_t psh_clear_event(handle_t handle);
-
-/* 0 means psh_add_event() has not been called */
-short psh_get_event_id(handle_t handle);
+int ish_get_fd(handle_t handle);
 
 /* set properties */
-error_t psh_set_property(handle_t handle, property_type prop_type, void *value);
-error_t psh_set_property_with_size(handle_t handle, property_type prop_type, int size, void *value);
+error_t ish_set_property(handle_t handle, property_type prop_type, void *value);
+error_t ish_set_property_with_size(handle_t handle, property_type prop_type, int size, void *value);
+
+error_t get_sensors_list(ish_usecase_t usecase, void *buf, int *sensor_num);
 
 /* data format of each sensor type */
 struct accel_data {
+	int32_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct gyro_raw_data {
+	int32_t ts;
 	int x;
 	int y;
 	int z;
-	short accuracy;
+//	short accuracy;
 } __attribute__ ((packed));
 
 struct compass_raw_data {
+	int32_t ts;
 	int x;
 	int y;
 	int z;
-	short accuracy;		/* high or low */
+//	short accuracy;		/* high or low */
 } __attribute__ ((packed));
 
 struct tc_data {
+	int32_t ts;
 	short orien_xy;
 	short orien_z;
 } __attribute__ ((packed));
 
 struct baro_raw_data {
+	int32_t ts;
 	int p;
 } __attribute__ ((packed));
 
 struct als_raw_data {
+	int32_t ts;
 	unsigned int lux;
 } __attribute__ ((packed));
 
 struct phy_activity_data {
-	short len;
-	short values[64];
+	int32_t ts;
+	unsigned char values[7];
+	unsigned char confidence[7];
 } __attribute__ ((packed));
 
 struct gs_data {
+	int32_t ts;
 	unsigned short size; //unit is byte
 	short sample[0];
 } __attribute__ ((packed));
+
 struct gesture_hmm_data {
+	int32_t ts;
 	short prox_gesture; //proximity if not use context arbiter; gesture if use context arbiter
 	unsigned short size; //unit is byte
-	short sample[900];
+	short sample[0];
 } __attribute__ ((packed));
+
+struct pdr_sample {
+	int x;		/* position x, unit is cm */
+	int y;		/* position y, unit is cm */
+	int fl;	/* floor level, unit is 1 */
+	int heading;	/* heading angle, unit is 0.01 deg */
+	int step;	/* step counts in PDR, unit is 1 step */
+	int distance;	/* total PDR distance, unit is cm */
+	int confidence;/* heading confidence, the smaller the better */
+} __attribute__ ((packed));
+
+struct pdr_data {
+	int32_t ts;
+	short size;
+	struct pdr_sample sample[0];
+} __attribute__ ((packed));
+
 struct gesture_eartouch_data {
+	int32_t ts;
 	short eartouch;
 } __attribute__ ((packed));
 
 struct ps_phy_data {
-	unsigned short near;
+	int32_t ts;
+	//unsigned short near;
+	unsigned char near;
 } __attribute__ ((packed));
 
 struct gesture_flick_data {
+	int32_t ts;
 	short flick;
 } __attribute__ ((packed));
 
 struct shaking_data {
+	int32_t ts;
 	short shaking;
 } __attribute__ ((packed));
 
 struct stap_data {
+	int32_t ts;
 	short stap;
 } __attribute__ ((packed));
 
-struct ptz_data {
-	short cls_name;	/* ptz class: pan, tilt, zoom */
-	short angle;		/* ptz angle: 0.1deg/s */
+struct pz_data {
+	int32_t ts;
+	short deltX;
+	short deltY;		/* deltX and deltY: 0.01deg/s */
 }__attribute__ ((packed));
+
 struct rotation_vector_data {
-	int x;
-	int y;
-	int z;
-	int w;
+	int32_t ts;
+//      int x;
+//      int y;
+//      int z;
+//      int w;
+        short x;
+        short y;
+        short z;
+        short w;
 } __attribute__ ((packed));
+
 struct game_rotation_vector_data {
-	int x;
-	int y;
-	int z;
-	int w;
+	int32_t ts;
+//	int x;
+//	int y;
+//	int z;
+//	int w;
+	short x;
+	short y;
+	short z;
+	short w;
 } __attribute__ ((packed));
+
 struct geomagnetic_rotation_vector_data {
-	int x;
-	int y;
-	int z;
-	int w;
+	int32_t ts;
+//      int x;
+//      int y;
+//      int z;
+//      int w;
+        short x;
+        short y;
+        short z;
+        short w;
 } __attribute__ ((packed));
 
 struct gravity_data {
+	int32_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct linear_accel_data {
+	int32_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
+struct uncalib_gyro_data {
+	int32_t ts;
+        int x_uncalib;
+	int x_calib;
+        int y_uncalib;
+	int y_calib;
+        int z_uncalib;
+	int z_calib;
+} __attribute__ ((packed));
+
+struct uncalib_compass_data {
+	int32_t ts;
+        int x_uncalib;
+        int x_calib;
+        int y_uncalib;
+        int y_calib;
+        int z_uncalib;
+        int z_calib;
+} __attribute__ ((packed));
+
+struct uncalib_acc_data {
+	int32_t ts;
+        int x_uncalib;
+        int y_uncalib;
+        int z_uncalib;
+} __attribute__ ((packed));
+
+struct motion_detect_data {
+	int32_t ts;
+	char eventData1;
+	char eventData2;
+	char eventData3;
+	char eventData4;
+	char eventData5;
+} __attribute__ ((packed));
+
 struct orientation_data {
+	int32_t ts;
 	int azimuth;
 	int pitch;
 	int roll;
-} __attribute__ ((packed));
-
-struct compasscal_info {
-	int offset[3];
-	int w[3][3];
-	int bfield;
-} __attribute__ ((packed));
-
-struct gyrocal_info {
-	short x;
-	short y;
-	short z;
-} __attribute__ ((packed));
-
-#define SUBCMD_CALIBRATION_SET		(0x1)
-#define SUBCMD_CALIBRATION_GET		(0x2)
-#define SUBCMD_CALIBRATION_START	(0x3)
-#define SUBCMD_CALIBRATION_STOP		(0x4)
-
-#define SUBCMD_CALIBRATION_TRUE		(100)
-#define SUBCMD_CALIBRATION_FALSE 	(0)
-struct cmd_calibration_param {
-	psh_sensor_t sensor_type;
-	unsigned char sub_cmd;
-	unsigned char calibrated;
-	union {
-		struct compasscal_info compass;
-		struct gyrocal_info gyro;
-	} cal_param;
-} __attribute__ ((packed));
-
-struct sub_event {
-	unsigned char sensor_id;
-	unsigned char chan_id;		/* 1:x, 2:y, 4:z, 7:all */
-	unsigned char opt_id;		/* 0:OP_EQUAL, 1:OP_GREAT, 2:OP_LESS, 3:OP_BETWEEN */
-	int param1;
-	int param2;
-} __attribute__ ((packed));
-
-struct event_notification_data {
-	unsigned char event_id;
 } __attribute__ ((packed));
 
 struct ndof_data {
@@ -359,9 +410,11 @@ struct ndof_data {
 struct ndofag_data {
 	int     m[9];
 } __attribute__ ((packed));
+
 struct ndofam_data {
 	int     m[9];
 } __attribute__ ((packed));
+
 struct pedometer_data {
 	int num;
 	short mode;
@@ -381,28 +434,50 @@ struct lpe_phy_data {
 #define MD_STATE_STILL 2
 
 struct md_data {
+	int32_t ts;
 	short state;
 } __attribute__ ((packed));
 
-struct lv_data {
-	short state;
-} __attribute__ ((packed));
 struct device_position_data {
+	int32_t ts;
 	short pos;
 } __attribute__ ((packed));
+
 struct sm_data {
-	short state;
+	int32_t ts;
+	unsigned char state;
 } __attribute__ ((packed));
+
 struct stepcounter_data {
-	int num;
+	int32_t ts;
+	unsigned char reset_flag;
+	int32_t walk_step_count;
+	int32_t walk_step_duration;
+	int32_t run_step_count;
+	int32_t run_step_duration;
 } __attribute__ ((packed));
+
 struct stepdetector_data {
-	int state;
+	int32_t ts;
+	unsigned char step_event;
+	unsigned char step_type;
+	int32_t step_count;
+	int32_t step_duration;
 } __attribute__ ((packed));
-struct lift_look_data {
-	short liftlook;
+
+struct instant_activity_data {
+	int32_t ts;
+	unsigned char typeclass;
 } __attribute__ ((packed));
+
+struct lift_data {
+	int32_t ts;
+	char look;
+	char vertical;
+} __attribute__ ((packed));
+
 struct dtwgs_data {
+	int32_t ts;
 	short gsnum;
 	int score;
 } __attribute__ ((packed));
