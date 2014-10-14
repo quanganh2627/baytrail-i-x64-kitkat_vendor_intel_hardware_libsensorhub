@@ -686,6 +686,25 @@ static void dump_pickup_data(int fd)
 	}
 }
 
+static void dump_tilt_detector_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct tilt_detector_data *p_tilt_detector_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+		p_tilt_detector_data = (struct tilt_detector_data *)buf;
+		while (size > 0) {
+			printf("tilt_detector data is %d, size is %d \n",
+				p_tilt_detector_data->tiltd, size);
+			size = size - sizeof(struct tilt_detector_data);
+			p = p + sizeof(struct tilt_detector_data);
+			p_tilt_detector_data = (struct tilt_detector_data *)p;
+		}
+	}
+}
+
 static void dump_stepcounter_data(int fd)
 {
         char buf[512];
@@ -843,7 +862,8 @@ static void usage()
 		"			6DOFM, 6dofam;               LIFT,  lift;                        DTWGS, dtwgs;\n"
 		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, pedestrian dead reckoning;\n"
 		"			ISACT, instant activity;     DSHAK, directional_shaking;         GTILT, gesture tilt;\n"
-		"			GSNAP, gesture snap;         PICUP, pickup gesture;              BIST, BIST;\n");
+		"			GSNAP, gesture snap;         PICUP, pickup gesture;              TILTD, tilt detectot;\n"
+		"			BIST, BIST;\n");
 	printf("  -r, --date-rate	unit is Hz\n");
 	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set	format: <property id>,<property value>\n");
@@ -1060,6 +1080,11 @@ int main(int argc, char **argv)
 					(struct pickup_data *)buf;
 			printf("get_single returns, pickup is %d\n",
 					p_pickup_data->pickup);
+		} else if (strncmp(sensor_name, "TILTD", SNR_NAME_MAX_LEN) == 0) {
+			struct tilt_detector_data *p_tilt_detector_data =
+					(struct tilt_detector_data *)buf;
+			printf("get_single returns, tilt_detector is %d\n",
+					p_tilt_detector_data->tiltd);
 		} else if (strncmp(sensor_name, "LIFT", SNR_NAME_MAX_LEN) == 0) {
 			struct lift_data *p_lift_data =
 					(struct lift_data *)buf;
@@ -1238,6 +1263,8 @@ int main(int argc, char **argv)
 			dump_device_position_data(fd);
 		else if (strncmp(sensor_name, "PICUP", SNR_NAME_MAX_LEN) == 0)
 			dump_pickup_data(fd);
+		else if (strncmp(sensor_name, "TILTD", SNR_NAME_MAX_LEN) == 0)
+			dump_tilt_detector_data(fd);
 		else if (strncmp(sensor_name, "SCOUN", SNR_NAME_MAX_LEN) == 0)
 			dump_stepcounter_data(fd);
 		else if (strncmp(sensor_name, "SDET", SNR_NAME_MAX_LEN) == 0)
