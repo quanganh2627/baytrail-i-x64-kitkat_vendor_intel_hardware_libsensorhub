@@ -30,7 +30,7 @@ typedef struct {
 static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_recv,
                                         size_t len_send, size_t len_recv, pthread_mutex_t *lock)
 {
-	int err, ret;
+	int err, ret, size = 0;
 	int event_type;
 	struct timeval timeout = {5, 0};
 	cmd_ack_event *p_cmd_ack;
@@ -54,6 +54,8 @@ static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_re
 		goto err_recv;
 	}
 
+        size = ret;
+
 	event_type = *((int *)buf_recv);
 	if (event_type != EVENT_CMD_ACK) {
 		ret = ERROR_CAN_NOT_GET_REPLY;
@@ -61,12 +63,19 @@ static ssize_t psh_send_recv_cmd_locked(int sockfd, void *buf_send, void *buf_re
 	}
 
 	p_cmd_ack = (cmd_ack_event *)buf_recv;
+
+        size -= sizeof(cmd_ack_event) + p_cmd_ack->buf_len;
+
 	if (p_cmd_ack->ret == E_ANOTHER_REPLY) {
-		ret = recv(sockfd, buf_recv, len_recv, 0);
-		if (ret <= 0) {
-			ret = ERROR_CAN_NOT_GET_REPLY;
-			goto err_recv;
-		}
+                if (size > 0) {
+                        memcpy(buf_recv, buf_recv + sizeof(cmd_ack_event) + p_cmd_ack->buf_len, size);
+                } else {
+                        ret = recv(sockfd, buf_recv, len_recv, 0);
+                        if (ret <= 0) {
+                                ret = ERROR_CAN_NOT_GET_REPLY;
+                                goto err_recv;
+                        }
+                }
 	}
 
 	ret = 0;

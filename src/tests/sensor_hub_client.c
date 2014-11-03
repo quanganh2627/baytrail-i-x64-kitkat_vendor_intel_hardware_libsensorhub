@@ -891,7 +891,6 @@ int main(int argc, char **argv)
 	int i;
 
 	char buf[512];
-	struct accel_data *p_accel_data;
 
 	while (1) {
 		static struct option opts[] = {
@@ -964,7 +963,6 @@ int main(int argc, char **argv)
 	}
 
 	if (cmd_type == 0) {
-		p_accel_data = (struct accel_data *)buf;
 		size = psh_get_single(handle, buf, 128);
 
 		if (strncmp(sensor_name, "ACCEL", SNR_NAME_MAX_LEN) == 0) {
