@@ -679,8 +679,13 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 	p_session_state->state = INACTIVE;
 
 	if ((p_sensor_state->data_rate == data_rate_arbitered)
-	&& (p_sensor_state->buffer_delay == buffer_delay_arbitered))
+            && (p_sensor_state->buffer_delay == buffer_delay_arbitered)) {
+                cmd_ack_event cmd_ack = {EVENT_CMD_ACK, E_SUCCESS, 0};
+                if (send(p_session_state->ctlfd, &cmd_ack, sizeof(cmd_ack_event), 0) < 0) {
+                        ALOGE("%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+                }
 		return;
+        }
 
 	p_sensor_state->data_rate = data_rate_arbitered;
 	p_sensor_state->buffer_delay = buffer_delay_arbitered;
