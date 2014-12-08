@@ -25,7 +25,6 @@ typedef enum {
 	SENSOR_ACTIVITY,
 	SENSOR_GS,
 	SENSOR_GESTURE_FLICK,
-
 	SENSOR_ROTATION_VECTOR,
 	SENSOR_GRAVITY,
 	SENSOR_LINEAR_ACCEL,
@@ -103,6 +102,7 @@ typedef enum {
 typedef enum {
 	PROP_GENERIC_START = 0,
 	PROP_STOP_REPORTING = 1,
+	PROP_SENSITIVITY,
 	PROP_GENERIC_END = 20,
 
 	PROP_PEDOMETER_START = 20,
@@ -130,11 +130,13 @@ typedef enum {
 	PROP_STAP_CLSMASK,
 	PROP_STAP_LEVEL,
 	PROP_STAP_END = 120,
+
 	PROP_DTWGSM_START = 120,
 	PROP_DTWGSM_LEVEL,
 	PROP_DTWGSM_DST,
 	PROP_DTWGSM_TEMPLATE,
 	PROP_DTWGSM_END = 140,
+
 	PROP_PEDOPLUS_START = 140,
 	PROP_PEDOPLUS_PIAMODE,
 	PROP_PEDOPLUS_SCOUNTERMODE,
@@ -143,6 +145,7 @@ typedef enum {
 	PROP_PEDOPLUS_ADMISSION,
 	PROP_PEDOPLUS_CLSMASK,
 	PROP_PEDOPLUS_END = 160,
+
 	PROP_EARTOUCH_START = 160,
 	PROP_EARTOUCH_CLSMASK,
 	PROP_EARTOUCH_END = 180,
@@ -209,6 +212,7 @@ struct accel_data {
 	int x;
 	int y;
 	int z;
+	unsigned char motion;
 } __attribute__ ((packed));
 
 struct gyro_raw_data {
@@ -216,7 +220,6 @@ struct gyro_raw_data {
 	int x;
 	int y;
 	int z;
-//	short accuracy;
 } __attribute__ ((packed));
 
 struct compass_raw_data {
@@ -224,13 +227,11 @@ struct compass_raw_data {
 	int x;
 	int y;
 	int z;
-//	short accuracy;		/* high or low */
 } __attribute__ ((packed));
 
 struct tc_data {
 	int32_t ts;
-	short orien_xy;
-	short orien_z;
+	unsigned char state;
 } __attribute__ ((packed));
 
 struct baro_raw_data {
@@ -245,8 +246,7 @@ struct als_raw_data {
 
 struct phy_activity_data {
 	int32_t ts;
-	unsigned char values[7];
-	unsigned char confidence[7];
+	int values[7];
 } __attribute__ ((packed));
 
 struct gs_data {
@@ -265,11 +265,6 @@ struct gesture_hmm_data {
 struct pdr_sample {
 	int x;		/* position x, unit is cm */
 	int y;		/* position y, unit is cm */
-	int fl;	/* floor level, unit is 1 */
-	int heading;	/* heading angle, unit is 0.01 deg */
-	int step;	/* step counts in PDR, unit is 1 step */
-	int distance;	/* total PDR distance, unit is cm */
-	int confidence;/* heading confidence, the smaller the better */
 } __attribute__ ((packed));
 
 struct pdr_data {
@@ -285,8 +280,7 @@ struct gesture_eartouch_data {
 
 struct ps_phy_data {
 	int32_t ts;
-	//unsigned short near;
-	unsigned char near;
+	char near;
 } __attribute__ ((packed));
 
 struct gesture_flick_data {
@@ -296,7 +290,7 @@ struct gesture_flick_data {
 
 struct shaking_data {
 	int32_t ts;
-	short shaking;
+	unsigned char shaking;
 } __attribute__ ((packed));
 
 struct stap_data {
@@ -306,16 +300,12 @@ struct stap_data {
 
 struct pz_data {
 	int32_t ts;
-	short deltX;
-	short deltY;		/* deltX and deltY: 0.01deg/s */
+	int deltX;
+	int deltY;		/* deltX and deltY: 0.01deg/s */
 }__attribute__ ((packed));
 
 struct rotation_vector_data {
 	int32_t ts;
-//      int x;
-//      int y;
-//      int z;
-//      int w;
         short x;
         short y;
         short z;
@@ -324,10 +314,6 @@ struct rotation_vector_data {
 
 struct game_rotation_vector_data {
 	int32_t ts;
-//	int x;
-//	int y;
-//	int z;
-//	int w;
 	short x;
 	short y;
 	short z;
@@ -336,10 +322,6 @@ struct game_rotation_vector_data {
 
 struct geomagnetic_rotation_vector_data {
 	int32_t ts;
-//      int x;
-//      int y;
-//      int z;
-//      int w;
         short x;
         short y;
         short z;
@@ -398,9 +380,19 @@ struct motion_detect_data {
 
 struct orientation_data {
 	int32_t ts;
-	int azimuth;
-	int pitch;
-	int roll;
+	int tiltx;
+	int tilty;
+	int tiltz;
+	char mag_accuracy;
+	char mag_err_rad;
+} __attribute__ ((packed));
+
+struct device_orientation_data {
+	int32_t ts;
+	int w;
+	int x;
+	int y;
+	int z;
 } __attribute__ ((packed));
 
 struct ndof_data {
@@ -423,6 +415,9 @@ struct pedometer_data {
 
 struct mag_heading_data {
 	int heading;
+	int x;
+	int y;
+	int z;
 } __attribute__ ((packed));
 
 struct lpe_phy_data {
@@ -459,7 +454,7 @@ struct stepcounter_data {
 
 struct stepdetector_data {
 	int32_t ts;
-	unsigned char step_event;
+	int32_t step_event_counter;
 	unsigned char step_type;
 	int32_t step_count;
 	int32_t step_duration;

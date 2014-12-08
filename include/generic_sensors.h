@@ -9,6 +9,7 @@
 #define USAGE_SENSOR_PROPERTY_POWER_STATE_D1_LOW_POWER_ENUM		0x03
 #define USAGE_SENSOR_PROPERTY_REPORTING_STATE_NO_EVENTS_ENUM		0x01
 
+#define USAGE_SENSOR_DATA_MOTION_STATE					0x200451
 #define USAGE_SENSOR_DATA_MOTION_ACCELERATION_X_AXIS			0x200453
 #define USAGE_SENSOR_DATA_MOTION_ACCELERATION_Y_AXIS			0x200454
 #define USAGE_SENSOR_DATA_MOTION_ACCELERATION_Z_AXIS			0x200455
@@ -17,11 +18,18 @@
 #define USAGE_SENSOR_DATA_MOTION_GYROMETER_Y_AXIS			0x200458
 #define USAGE_SENSOR_DATA_MOTION_GYROMETER_Z_AXIS			0x200459
 
+#define USAGE_SENSOR_DATA_ORIENTATION_COMPENSATED_MAGNETIC_NORTH	0x200475
+
+#define USAGE_SENSOR_DATA_ORIENTATION_TILT_X				0x20047F
+#define USAGE_SENSOR_DATA_ORIENTATION_TILT_Y				0x200480
+#define USAGE_SENSOR_DATA_ORIENTATION_TILT_Z				0x200481
+
 #define USAGE_SENSOR_DATA_ORIENTATION_QUATERNION			0x200483
 
 #define USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_X_AXIS		0x200485
 #define USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Y_AXIS		0x200486
 #define USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Z_AXIS		0x200487
+#define USAGE_SENSOR_DATE_ORIENTATION_MAGNETIC_ACCURACY			0x200488
 
 #define USAGE_SENSOR_DATA_ENVIRONMENT_ATMOSPHERIC_PRESSURE		0x200431
 
@@ -63,8 +71,7 @@ typedef struct {
 } generic_sensor_info_t;
 
 int init_generic_sensors(void *p_sensor_list, unsigned int *index);
-int generic_sensor_send_cmd(int tran_id, int cmd_id, ish_sensor_t sensor_type,
-               unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg);
+int generic_sensor_send_cmd(struct cmd_send *cmd);
 int add_generic_sensor_fds(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_num);
 int process_generic_sensor_fd(int fd);
 

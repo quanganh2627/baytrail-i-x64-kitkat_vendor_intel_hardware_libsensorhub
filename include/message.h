@@ -26,7 +26,7 @@ typedef struct session_state_t {
 	session_id_t session_id;
 	unsigned int data_rate;
 	unsigned int buffer_delay;
-	int tail;
+	void *handle;
 	struct session_state_t *next;
 } session_state_t;
 
@@ -56,7 +56,8 @@ typedef enum {
 	ERR_SENSOR_NO_RESPONSE = -3,
 	ERR_CMD_NOT_SUPPORT = -4,
 	ERR_DATA_RATE_NOT_SUPPORT = -5,
-	ERR_NO_MEMORY = -6
+	ERR_NO_MEMORY = -6,
+	ERR_WRONG_PARAMETER = -7
 } ret_t;
 
 static struct sensor_name sensor_type_to_name_str[SENSOR_MAX] = {
@@ -121,6 +122,25 @@ typedef struct {
 	unsigned char buf[];
 } cmd_event;
 
+#define MAX_PROP_VALUE_LEN	4
+struct cmd_send {
+	unsigned char tran_id;
+	unsigned char cmd_id;
+	ish_sensor_t sensor_type;
+	union {
+		struct {
+			unsigned short data_rate;
+			unsigned short buffer_delay;
+			unsigned short bit_cfg;
+		} start_stream;
+		struct {
+			property_type prop_type;
+			unsigned int len;
+			unsigned char value[MAX_PROP_VALUE_LEN];
+		} set_prop;
+	};
+} __attribute__ ((packed));
+
 struct cmd_resp {
 	unsigned char tran_id;
 	unsigned char cmd_type;
@@ -135,6 +155,6 @@ enum resp_type {
 	RESP_STREAMING,
 };
 
-#define MAX_SENSOR_INDEX 25
+#define MAX_SENSOR_INDEX 50
 
 #endif
