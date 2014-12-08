@@ -16,8 +16,7 @@ typedef struct {
 	unsigned int index_end;
 
 	int (*init)(void *p_sensor_list, unsigned int *index);
-	int (*send_cmd)(int tran_id, int cmd_id, ish_sensor_t sensor_type,
-			unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg);
+	int (*send_cmd)(struct cmd_send *cmd);
 	int (*add_fds)(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_num);
 	int (*process_fd)(int fd);
 } ish_platform_t;

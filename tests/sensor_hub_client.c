@@ -83,6 +83,139 @@ static void dump_comp_data(int fd)
 	}
 }
 
+static void dump_light_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct als_raw_data *p_als_raw_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_als_raw_data = (struct als_raw_data *)buf;
+		while (size > 0) {
+		printf("lux is: %d, size is %d \n",
+					p_als_raw_data->lux, size);
+			size = size - sizeof(struct als_raw_data);
+			p = p + sizeof(struct als_raw_data);
+			p_als_raw_data = (struct als_raw_data *)p;
+		}
+	}
+}
+
+static void dump_stepc_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct stepcounter_data *p_stepcounter_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_stepcounter_data = (struct stepcounter_data *)buf;
+		while (size > 0) {
+		printf("stepc is: %d, %d, %d, %d, %d size is %d \n",
+					p_stepcounter_data->reset_flag,
+					p_stepcounter_data->walk_step_count,
+					p_stepcounter_data->walk_step_duration,
+					p_stepcounter_data->run_step_count,
+					p_stepcounter_data->run_step_duration,
+					size);
+			size = size - sizeof(struct stepcounter_data);
+			p = p + sizeof(struct stepcounter_data);
+			p_stepcounter_data = (struct stepcounter_data *)p;
+		}
+	}
+}
+
+static void dump_stepd_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct stepdetector_data *p_stepdetector_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_stepdetector_data = (struct stepdetector_data *)buf;
+		while (size > 0) {
+		printf("stepd is: %d, %d, %d, %d size is %d \n",
+					p_stepdetector_data->step_event_counter,
+					p_stepdetector_data->step_type,
+					p_stepdetector_data->step_count,
+					p_stepdetector_data->step_duration,
+					size);
+			size = size - sizeof(struct stepdetector_data);
+			p = p + sizeof(struct stepdetector_data);
+			p_stepdetector_data = (struct stepdetector_data *)p;
+		}
+	}
+}
+
+static void dump_tap_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct stap_data *p_stap_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_stap_data = (struct stap_data *)buf;
+		while (size > 0) {
+		printf("stepd is: %d, size is %d \n",
+					p_stap_data->stap,
+					size);
+			size = size - sizeof(struct stap_data);
+			p = p + sizeof(struct stap_data);
+			p_stap_data = (struct stap_data *)p;
+		}
+	}
+}
+
+static void dump_sm_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct sm_data *p_sm_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_sm_data = (struct sm_data *)buf;
+		while (size > 0) {
+		printf("stepd is: %d, size is %d \n",
+					p_sm_data->state,
+					size);
+			size = size - sizeof(struct sm_data);
+			p = p + sizeof(struct sm_data);
+			p_sm_data = (struct sm_data *)p;
+		}
+	}
+}
+
+static void dump_lift_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct lift_data *p_lift_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_lift_data = (struct lift_data *)buf;
+		while (size > 0) {
+		printf("lift is: %d, %d size is %d \n",
+					p_lift_data->look,
+					p_lift_data->vertical,
+					size);
+			size = size - sizeof(struct lift_data);
+			p = p + sizeof(struct lift_data);
+			p_lift_data = (struct lift_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -97,8 +230,10 @@ static void usage()
 		"			PTZ, pan tilt zoom;          LTVTL, lift vertical;               DVPOS, device position;\n"
 		"			SCOUN, step counter;         SDET, step detector;                SIGMT, significant motion;\n"
 		"			6AGRV, game_rotation vector; 6AMRV, geomagnetic_rotation vector; 6DOFG, 6dofag;\n"
-		"			6DOFM, 6dofam;               LIFLK, lift look;                   DTWGS, dtwgs;\n"
-		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            BIST, BIST;\n");
+		"			6DOFM, 6dofam;               LIFT, lift;                   DTWGS, dtwgs;\n"
+		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, \n"
+		"			ISACT, instant activity	     UCMPS, uncalibrated compass         UGYRO, uncalibrated gyro\n"
+		"			UACC, uncalibrated accelerometer,  MOTDT, move detector\n");
 	printf("  -r, --date-rate	unit is Hz\n");
 	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set	format: <property id>,<property value>\n");
@@ -123,6 +258,7 @@ int main(int argc, char **argv)
 	int prop_ids[10];
 	int prop_vals[10];
 	int prop_count = 0;
+	int prop_tmp = 1;
 	char *sensor_list;
 	int sensor_num;
 	int i;
@@ -219,6 +355,16 @@ int main(int argc, char **argv)
 		dump_gyro_data(fd);
 	else if (strncmp(sensor_name, "COMPS", SNR_NAME_MAX_LEN) == 0)
 		dump_comp_data(fd);
+	else if (strncmp(sensor_name, "SDET", SNR_NAME_MAX_LEN) == 0)
+		dump_stepd_data(fd);
+	else if (strncmp(sensor_name, "SCOUN", SNR_NAME_MAX_LEN) == 0)
+		dump_stepc_data(fd);
+	else if (strncmp(sensor_name, "STAP", SNR_NAME_MAX_LEN) == 0)
+		dump_tap_data(fd);
+	else if (strncmp(sensor_name, "SIGMT", SNR_NAME_MAX_LEN) == 0)
+		dump_sm_data(fd);
+	else if (strncmp(sensor_name, "LIFT", SNR_NAME_MAX_LEN) == 0)
+		dump_lift_data(fd);
 	else
 		printf("current not supported!\n");
 

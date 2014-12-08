@@ -21,6 +21,10 @@
 #include "message.h"
 #include "platform_def.h"
 
+#ifdef ENABLE_CONTEXT_ARBITOR
+#include <awarelibs/libcontextarbitor.h>
+#endif
+
 #define MAX_STRING_SIZE 256
 #define MAX_PROP_VALUE_SIZE 58
 
@@ -302,31 +306,42 @@ static unsigned short bit_cfg_arbiter(sensor_state_t *p_sensor_state,
 	return 0;
 }
 
-static int send_control_cmd(int tran_id, int cmd_id, ish_sensor_t sensor_type,
-			unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg)
+static int send_control_cmd(struct cmd_send *cmd)
 {
 	int i, j;
-	sensor_state_t *state = get_sensor_state_with_type(sensor_type);
+	sensor_state_t *state = get_sensor_state_with_type(cmd->sensor_type);
 	unsigned int index = state->index;
 	int ret;
 
-	log_message(DEBUG, "[%s]: cmd_id %d, sensor_type %d, data_rate %d, buf_delay %d, bit_cfg %d\n",
-					__func__, cmd_id, sensor_type, data_rate, buffer_delay, bit_cfg);
+	log_message(DEBUG, "[%s]: cmd_id %d, sensor_type %d\n", __func__, cmd->cmd_id, cmd->sensor_type);
 
 	i = sizeof(ish_platf) / sizeof(ish_platform_t);
 	for (j = 0; j < i; j++)
 		if (index >= ish_platf[j].index_start && index <= ish_platf[j].index_end)
 			if (ish_platf[j].send_cmd)
-				ret = ish_platf[j].send_cmd(tran_id, cmd_id, sensor_type, data_rate, buffer_delay, bit_cfg);
+				ret = ish_platf[j].send_cmd(cmd);
 
 	return ret;
 }
 
-static int send_set_property(sensor_state_t *p_sensor_state, property_type prop_type, int len, unsigned char *value)
+static int send_set_property(sensor_state_t *p_sensor_state, session_state_t *p_session_state,
+                                 property_type prop_type, int len, unsigned char *value)
 {
+	struct cmd_send cmd;
+	int ret;
+
 	log_message(DEBUG, "[%s] enter", __func__);
 
-	return SUCCESS;
+	cmd.tran_id = 0;
+	cmd.cmd_id = CMD_SET_PROPERTY;
+	cmd.sensor_type = p_sensor_state->sensor_info->sensor_type;
+	cmd.set_prop.prop_type = prop_type;
+	cmd.set_prop.len = len;
+	memcpy(cmd.set_prop.value, value, len);
+
+	ret = send_control_cmd(&cmd);
+
+	return ret;
 }
 
 static int process_bist_get_property(sensor_state_t *p_sensor_state, session_state_t *p_session_state,
@@ -336,6 +351,9 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 	ish_usecase_t usecase = (ish_usecase_t)*value;
 
 	log_message(DEBUG, "[%s] enter", __func__);
+
+	if (len != sizeof(ish_usecase_t))
+		return ERR_WRONG_PARAMETER;
 
 	cmd_ack = malloc(sizeof(cmd_ack_event) + current_sensor_index * sizeof(sensor_info_t));
 	if (cmd_ack) {
@@ -390,6 +408,7 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 {
 	int data_rate_arbitered, buffer_delay_arbitered;
 	unsigned short bit_cfg = 0;
+	struct cmd_send cmd;
 
 	log_message(DEBUG, "[%s] enter", __func__);
 
@@ -425,14 +444,17 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 	else
 		bit_cfg = bit_cfg_arbiter(p_sensor_state, 0, p_session_state);
 
-	send_control_cmd(0, CMD_START_STREAMING,
-			p_sensor_state->sensor_info->sensor_type,
-			data_rate_arbitered, buffer_delay_arbitered, bit_cfg);
+	cmd.tran_id = 0;
+	cmd.cmd_id = CMD_START_STREAMING;
+	cmd.sensor_type = p_sensor_state->sensor_info->sensor_type;
+	cmd.start_stream.data_rate = data_rate_arbitered;
+	cmd.start_stream.buffer_delay = buffer_delay_arbitered;
+	cmd.start_stream.bit_cfg = bit_cfg;
+	send_control_cmd(&cmd);
 
 	if (data_rate != 0) {
 		p_session_state->data_rate = data_rate;
 		p_session_state->buffer_delay = buffer_delay;
-		p_session_state->tail = 0;
 		if (flag == 0)
 			p_session_state->state = ACTIVE;
 		else if (flag == 1)
@@ -449,6 +471,7 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 {
 	unsigned int data_rate_arbitered, buffer_delay_arbitered;
 	unsigned short bit_cfg_arbitered;
+	struct cmd_send cmd;
 
 	log_message(DEBUG, "[%s] enter", __func__);
 
@@ -485,13 +508,23 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 		/* send CMD_START_STREAMING to sysfs control node to
 		   re-config the data rate */
 		bit_cfg_arbitered = bit_cfg_arbiter(p_sensor_state, 0, p_session_state);
-		send_control_cmd(0, CMD_START_STREAMING,
-				p_sensor_state->sensor_info->sensor_type,
-				data_rate_arbitered, buffer_delay_arbitered, bit_cfg_arbitered);
+
+		cmd.tran_id = 0;
+		cmd.cmd_id = CMD_START_STREAMING;
+		cmd.sensor_type = p_sensor_state->sensor_info->sensor_type;
+		cmd.start_stream.data_rate = data_rate_arbitered;
+		cmd.start_stream.buffer_delay = buffer_delay_arbitered;
+		cmd.start_stream.bit_cfg = bit_cfg_arbitered;
+		send_control_cmd(&cmd);
 	} else {
 		/* send CMD_STOP_STREAMING cmd to sysfs control node */
-		send_control_cmd(0, CMD_STOP_STREAMING,
-			p_sensor_state->sensor_info->sensor_type, 0, 0, 0);
+		cmd.tran_id = 0;
+		cmd.cmd_id = CMD_STOP_STREAMING;
+		cmd.sensor_type = p_sensor_state->sensor_info->sensor_type;
+		cmd.start_stream.data_rate = 0;
+		cmd.start_stream.buffer_delay = 0;
+		cmd.start_stream.bit_cfg = 0;
+		send_control_cmd(&cmd);
 	}
 
 	log_message(DEBUG, "CMD_STOP_STREAMING, data_rate_arbitered is %d, "
@@ -541,7 +574,28 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 	} else if (cmd == CMD_STOP_STREAMING) {
 		stop_streaming(p_sensor_state, p_session_state);
 	} else if (cmd == CMD_SET_PROPERTY) {
-		send_set_property(p_sensor_state,  (property_type) p_cmd->parameter,p_cmd->parameter1, p_cmd->buf);
+#ifdef ENABLE_CONTEXT_ARBITOR
+		ctx_option_t *out_option = NULL;
+		int i;
+
+		if (ctx_set_option(p_session_state->handle, p_cmd->parameter, (char *)p_cmd->buf, &out_option) == -1)
+			return ERR_CMD_NOT_SUPPORT;
+
+		if (out_option == NULL)
+			return ERR_CMD_NOT_SUPPORT;
+
+		for (i = 0; i < out_option->len; i++) {
+			send_set_property(p_sensor_state, p_session_state, out_option->items[i].prop, out_option->items[i].size, (unsigned char *)out_option->items[i].value);
+		}
+
+		if (out_option->len == 0)
+			*reply_now = 1;
+
+		ctx_option_release(out_option);
+#endif
+#ifndef ENABLE_CONTEXT_ARBITOR
+		send_set_property(p_sensor_state, p_session_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);    // property type, property size, property value
+#endif
 	} else if (cmd == CMD_GET_PROPERTY) {
 		send_get_property(p_sensor_state, p_session_state, p_cmd->parameter, p_cmd->buf);
 		*reply_now = 0;
@@ -592,6 +646,9 @@ static void handle_message(int fd, char *message)
 		memset(p_session_state, 0, sizeof(session_state_t));
 		p_session_state->datafd = fd;
 		p_session_state->session_id = session_id;
+#ifdef ENABLE_CONTEXT_ARBITOR
+		p_session_state->handle = ctx_open_session(p_sensor_state->name);
+#endif
 
 		p_session_state->next = p_sensor_state->list;
 		p_sensor_state->list = p_session_state;
@@ -699,7 +756,30 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 		if ((p_session_state->state != ACTIVE) && (p_session_state->state != ALWAYS_ON))
 			continue;
 
-		send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT);
+#ifdef ENABLE_CONTEXT_ARBITOR
+		void *out_data;
+		int out_size;
+
+		if (p_session_state->handle == NULL) {
+			if (send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+				log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+							__func__, __LINE__, strerror(errno), p_sensor_state->sensor_info->name);
+				return;
+			}
+		} else if (ctx_dispatch_data(p_session_state->handle, data, size, &out_data, &out_size) == 1) {
+			if (send(p_session_state->datafd, out_data, out_size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+				log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+							__func__, __LINE__, strerror(errno), p_sensor_state->sensor_info->name);
+				return;
+			}
+		}
+#else
+		if (send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+						__func__, __LINE__, strerror(errno), p_sensor_state->sensor_info->name);
+			return;
+		}
+#endif
 	}
 }
 
@@ -737,8 +817,8 @@ static void remove_session_by_fd(int fd)
 				continue;
 			}
 
-			close(p_session_state->ctlfd);
-			close(p_session_state->datafd);
+			//close(p_session_state->ctlfd);
+			//close(p_session_state->datafd);
 
 			stop_streaming(&sensor_list[i], p_session_state);
 
@@ -746,6 +826,22 @@ static void remove_session_by_fd(int fd)
 				sensor_list[i].list = p_session_state->next;
 			else
 				p->next = p_session_state->next;
+
+#ifdef ENABLE_CONTEXT_ARBITOR
+			ctx_option_t *out_option = NULL;
+			int j;
+
+			if (ctx_close_session(p_session_state->handle, &out_option) == 1) {
+				if (out_option != NULL) {
+					for (j = 0; j < out_option->len; ++j) {
+						send_set_property(sensor_list + i, p_session_state, out_option->items[j].prop,
+							out_option->items[j].size, (unsigned char *)out_option->items[j].value);
+					}
+
+					ctx_option_release(out_option);
+				}
+			}
+#endif
 
 			log_message(DEBUG, "session with datafd %d, ctlfd %d "
 				"is removed \n", p_session_state->datafd,
@@ -766,7 +862,7 @@ static void *screen_state_thread(void *cookie)
 		fd = open(SLEEP_NODE, O_RDONLY, 0);
 		do {
 			err = read(fd, &buf, 1);
-			//log_message(DEBUG,"wait for sleep err: %d, errno: %d\n", err, errno);
+			log_message(DEBUG,"wait for sleep err: %d, errno: %d\n", err, errno);
 		} while (err < 0 && errno == EINTR);
 
 		pthread_mutex_lock(&update_mutex);
@@ -780,7 +876,7 @@ static void *screen_state_thread(void *cookie)
 		fd = open(WAKE_NODE, O_RDONLY, 0);
 		do {
 			err = read(fd, &buf, 1);
-			//log_message(DEBUG,"wait for wake err: %d, errno: %d\n", err, errno);
+			log_message(DEBUG,"wait for wake err: %d, errno: %d\n", err, errno);
 		} while (err < 0 && errno == EINTR);
 
 		pthread_mutex_lock(&update_mutex);
@@ -813,10 +909,10 @@ static void handle_no_stop_no_report()
 				if (i == SENSOR_PEDOMETER) {
 					if (screen_state == 0) {
 						value = 1;
-						send_set_property(&sensor_list[i], PROP_STOP_REPORTING, 4, (unsigned char *)&value);
+						send_set_property(&sensor_list[i], NULL, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
 					} else {
 						value = 0;
-						send_set_property(&sensor_list[i], PROP_STOP_REPORTING, 4, (unsigned char *)&value);
+						send_set_property(&sensor_list[i], NULL, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
 					}
 				}
 			}
@@ -832,7 +928,7 @@ int add_notify_fd(fd_set *fds, int *notifyfds)
 	int ret;
 	int maxfd = sockfd;
 
-	//log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter", __func__);
 
 	FD_SET(sockfd, fds);
 
@@ -843,7 +939,7 @@ int add_notify_fd(fd_set *fds, int *notifyfds)
 		exit(EXIT_FAILURE);
 	}
 
-	//log_message(DEBUG,"sleep-wake fd is :%d\n", notifyfds[0]);
+	log_message(DEBUG,"sleep-wake fd is :%d\n", notifyfds[0]);
 
 	notifyfd = notifyfds[1];
 
@@ -860,7 +956,7 @@ int add_platform_fds(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_num)
 	int i, j;
 	int ret = 0;
 
-	//log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter", __func__);
 
 	i = sizeof(ish_platf) / sizeof(ish_platform_t);
 	for (j = 0; j < i; j++) {
@@ -879,7 +975,7 @@ void process_platform_fd(int fd)
 {
 	int i, j;
 
-	//log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter", __func__);
 
 	i = sizeof(ish_platf) / sizeof(ish_platform_t);
 	for (j = 0; j < i; j++)
@@ -908,8 +1004,6 @@ static void start_sensorhubd()
 
 	log_message(DEBUG,"after sleep thread launch\n");
 
-	acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
-
 	while (1) {
 		int hw_fds[255], hw_fds_num;
 		int maxfd;
@@ -927,7 +1021,6 @@ static void start_sensorhubd()
 				log_message(CRITICAL, "sensorhubd socket "
 					"select() failed. errno "
 					"is %d\n", errno);
-				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -951,7 +1044,6 @@ static void start_sensorhubd()
 			if (clientfd == -1) {
 				log_message(CRITICAL, "sensorhubd socket "
 					"accept() failed.\n");
-				release_wake_lock(WAKE_LOCK_ID);
 				exit(EXIT_FAILURE);
 			} else {
 				log_message(DEBUG, "new connection from client adding FD = %d\n", clientfd);
@@ -969,18 +1061,8 @@ static void start_sensorhubd()
 			char buf[20];
 			int ret;
 			ret = read(notifyfds[0], buf, 20);
-			//if (ret > 0)
-				//log_message(DEBUG, "Get notification,buf is %s, screen state is %d \n", buf, screen_state);
-
-			// make sure sensor start/stop is not interrupted by S3 suspend
-			if (screen_state == 1)
-				acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
-
-			// handle_screen_state_change();
-			handle_no_stop_no_report();
-
-			if (screen_state == 0)
-				release_wake_lock(WAKE_LOCK_ID);
+			if (ret > 0)
+				log_message(DEBUG, "Get notification,buf is %s, screen state is %d \n", buf, screen_state);
 
 			FD_CLR(notifyfds[0], &read_fds);
 
@@ -1023,7 +1105,7 @@ static void usage()
 
 int main(int argc, char **argv)
 {
-	int log_level = DEBUG;
+	int log_level = WARNING;
 
 	if (is_first_instance() != 1)
 		exit(0);

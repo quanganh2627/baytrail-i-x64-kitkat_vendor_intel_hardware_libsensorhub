@@ -2,9 +2,6 @@ ifeq ($(ENABLE_SENSOR_HUB_ISH),true)
 
 LOCAL_PATH := $(call my-dir)
 
-#Extend the path includes
-$(call add-path-map, libsensorhub:vendor/intel/hardware/libsensorhub/include)
-
 #
 # sensorhubd - sensorhub daemon
 #
@@ -18,6 +15,12 @@ LOCAL_SRC_FILES := \
     utils/utils.c
 LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy libcutils
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+
+ifeq ($(strip $(INTEL_FEATURE_AWARESERVICE)),true)
+LOCAL_SHARED_LIBRARIES += libcontextarbitor
+LOCAL_CFLAGS := -DENABLE_CONTEXT_ARBITOR
+endif
+
 include $(BUILD_EXECUTABLE)
 
 #

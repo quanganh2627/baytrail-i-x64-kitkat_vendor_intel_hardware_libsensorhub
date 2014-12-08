@@ -19,22 +19,33 @@
 #include "utils.h"
 #include "message.h"
 #include "generic_sensors.h"
+#include "generic_sensors_tab.h"
 
+/* used to broadcast sensorhub is up */
 #define SENSOR_UP_FILE			"/data/sensorsUp"
 
+/* sensor main entry path */
 #define SENSOR_EVENT_PATH		"/dev/sensor-collection"
-
 #define SENSOR_COL_PATH			"/sys/bus/platform/devices/sensor_collection/"
 
+/* sensor data path */
 #define SENSOR_DATA_PATH		SENSOR_COL_PATH "/data/sensors_data"
 
+/* sensor information entry path for each sensors */
 #define SENSOR_DIR_PATH			SENSOR_COL_PATH "sensor_%X_def/"
 
+/* sensor name path */
 #define SENSOR_NAME_PATH		SENSOR_DIR_PATH "name"
 
+/* sensor property */
 #define SENSOR_PROP_PATH		SENSOR_DIR_PATH "properties/"
-#define SENSOR_DESCP_PATH		SENSOR_DIR_PATH "properties/property_sensor_description/value"
+#define PROP_DESCP_PATH			SENSOR_PROP_PATH "property_sensor_description/value"
+#define PROP_INTERVAL			"property_report_interval"
+#define PROP_POWER_STATE		"property_power_state"
+#define PROP_REPORT_STATE		"property_reporting_state"
+#define PROP_SENSITIVITY_SUFFIX		"_chg_sensitivity_abs"
 
+/* sensor data field */
 #define SENSOR_DATA_FIELD_PATH		SENSOR_DIR_PATH "data_fields/"
 #define DATA_FIELD_USAGE_ID_FILE	"usage_id"
 #define DATA_FIELD_INDEX_FILE		"index"
@@ -48,950 +59,6 @@
 
 #define MAX_PATH_LEN			256
 #define MAX_VALUE_LEN			64
-
-generic_sensor_info_t g_info[] = {
-	/* index 0 accelerometer */
-	[0] = {
-		.friend_name = "type_motion_accelerometer_3d",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_X_AXIS,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_Y_AXIS,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_Z_AXIS,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 1 gyrometer*/
-	[1] = {
-		.friend_name = "type_motion_gyrometer_3d",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_X_AXIS,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_Y_AXIS,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_Z_AXIS,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 2 compass*/
-	[2] = {
-		.friend_name = "type_orientation_compass_3d",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_X_AXIS,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Y_AXIS,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Z_AXIS,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 3 light*/
-	[3] = {
-		.friend_name = "type_light_ambientlight",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_LIGHT_ILLUMINANCE,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-	/* index 4 barometer*/
-	[4] = {
-		.friend_name = "type_environmental_atmospheric_pressure",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ENVIRONMENT_ATMOSPHERIC_PRESSURE,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-	/* index 5 proximity*/
-	[5] = {
-		.friend_name = "type_biometric_presence",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_BIOMETRIC_HUMANCE_PRESENCE,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-	/* index 6 -RVECT- orientation*/
-	[6] = {
-		.friend_name = "type_orientation_device_orientation",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_QUATERNION,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-	/* index 7 -LACCL- linear accelerometer */
-	[7] = {
-		.friend_name = "0x202",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 8 -GRAVI- gravity*/
-	[8] = {
-		.friend_name = "0x209",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 9 -MOTDT- motion detect*/
-	[9] = {
-		.friend_name = "0x204",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 5,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 7,
-		},
-		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-	},
-	/* index 10 -6AMRV- GEOMAGNETIC_ROTATION_VECTOR*/
-	[10] = {
-		.friend_name = "0x201",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 10,
-		},
-	},
-	/* index 11 -SDET- step detector */
-	[11] = {
-		.friend_name = "0x234",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 5,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 10,
-		},
-	},
-	/* index 12 -SCOUN- step counter */
-	[12] = {
-		.friend_name = "0x230",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 5,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 9,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 13,
-		},
-		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
-			.exposed = 1,
-			.exposed_offset = 17,
-		},
-	},
-	/* index 13 -6AGRV- game rotation vector */
-	[13] = {
-		.friend_name = "0x200",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 10,
-		},
-	},
-	/* index 14 -- */
-	[14] = {
-		.friend_name = "null",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 15 -UACC- uncalibrated accelerometer */
-	[15] = {
-		.friend_name = "0x73",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-	},
-	/* index 16 -UGYRO- uncalibrated gyrometer */
-	[16] = {
-		.friend_name = "0x241",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 16,
-		},
-		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
-			.exposed = 1,
-			.exposed_offset = 20,
-		},
-		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
-			.exposed = 1,
-			.exposed_offset = 24,
-		},
-	},
-	/* index 17 -UCMPS- uncalibrated compass */
-	[17] = {
-		.friend_name = "0x242",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 16,
-		},
-		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
-			.exposed = 1,
-			.exposed_offset = 20,
-		},
-		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
-			.exposed = 1,
-			.exposed_offset = 24,
-		},
-	},
-	/* index 18 - STAP */
-	[18] = {
-		.friend_name = "0x210",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-	/* index 19 - LIFT */
-	[19] = {
-		.friend_name = "0x211",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 5,
-		},
-	},
-	/* index 20 - PZOOM */
-	[20] = {
-		.friend_name = "0x212",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-	},
-	/* index 21 - Physical Activity */
-	[21] = {
-		.friend_name = "0x232",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 5,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 7,
-		},
-		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
-			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
-			.exposed = 1,
-			.exposed_offset = 9,
-		},
-		.data_field[7] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_7,
-			.exposed = 1,
-			.exposed_offset = 10,
-		},
-		.data_field[8] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_8,
-			.exposed = 1,
-			.exposed_offset = 11,
-		},
-		.data_field[9] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_9,
-			.exposed = 1,
-			.exposed_offset = 12,
-		},
-		.data_field[10] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_10,
-			.exposed = 1,
-			.exposed_offset = 13,
-		},
-		.data_field[11] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_11,
-			.exposed = 1,
-			.exposed_offset = 14,
-		},
-		.data_field[12] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_12,
-			.exposed = 1,
-			.exposed_offset = 15,
-		},
-		.data_field[13] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_13,
-			.exposed = 1,
-			.exposed_offset = 16,
-		},
-		.data_field[14] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_14,
-			.exposed = 1,
-			.exposed_offset = 17,
-		},
-	},
-	/* index 22 - Instant Activity */
-	[22] = {
-		.friend_name = "0x237",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-	/* index 23 - Significant Motion */
-	[23] = {
-		.friend_name = "0x236",
-		.data_field[0] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
-			.exposed = 1,
-			.exposed_offset = 0,
-		},
-		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
-			.exposed = 1,
-			.exposed_offset = 4,
-		},
-	},
-};
-
-sensor_info_t g_sensor_info[] = {
-	[0] = {
-		.name = "ACCEL",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_ACCELEROMETER,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.001, 0.001, 0.001},
-		.max_range = 2,
-		.resolution = 0.000488281,
-		.power = 0.006,
-		.plat_data = &g_info[0],
-	},
-	[1] = {
-		.name = "ALS_P",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_ALS,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {0.1},
-		.max_range = 6553.5,
-		.resolution = 0.1,
-		.power = 0.35,
-		.plat_data = &g_info[3],
-	},
-	[2] = {
-		.name = "PS_P",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_PROXIMITY,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {5.0},
-		.max_range = 5.0,
-		.resolution = 5.0,
-		.power = 0.35,
-		.plat_data = &g_info[5],
-	},
-	[3] = {
-		.name = "COMPS",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_COMP,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.1, 0.1, 0.1},
-		.max_range = 800.0,
-		.resolution = 0.5,
-		.power = 0.35,
-		.plat_data = &g_info[2],
-	},
-	[4] = {
-		.name = "GYRO",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_GYRO,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.000555556, 0.000555556, 0.000555556},
-		.max_range = 11.111111,
-		.resolution = 0.000555556,
-		.power = 6.1,
-		.plat_data = &g_info[1],
-	},
-	[5] = {
-		.name = "BARO",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_BARO,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 1,
-		.axis_scale = {1},
-		.max_range = 2,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[4],
-	},
-	[6] = {
-		.name = "GRAVI",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_GRAVITY,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.0000000152587890625, 0.0000000152587890625, 0.0000000152587890625},
-		.max_range = 2,
-		.resolution = 0.000488281,
-		.power = 0.006,
-		.plat_data = &g_info[8],
-	},
-	[7] = {
-		.name = "LACCL",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_LINEAR_ACCEL,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.001, 0.001, 0.001},
-		.max_range = 2,
-		.resolution = 0.000488281,
-		.power = 0.006,
-		.plat_data = &g_info[7],
-	},
-	[8] = {
-		.name = "RVECT",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_ROTATION_VECTOR,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.0000152587890625, 0.0000152587890625, 0.0000152587890625},
-		.max_range = 1,
-		.resolution = 0.0000000596046,
-		.power = 0.106,
-		.plat_data = &g_info[6],
-	},
-	[9] = {
-		.name = "ORIEN",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_ORIENTATION,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.0000152587890625, 0.0000152587890625, 0.0000152587890625},
-		.max_range = 360,
-		.resolution = 1.0,
-		.power = 0.106,
-		.plat_data = NULL,
-	},
-	[10] = {
-		.name = "SDET",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_STEPDETECTOR,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {1},
-		.max_range = 2,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[11],
-	},
-	[11] = {
-		.name = "SCOUN",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_STEPCOUNTER,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {1},
-		.max_range = 2,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[12],
-	},
-	[12] = {
-		.name = "6AGRV",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_GAME_ROTATION_VECTOR,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 4,
-		.axis_scale = {1, 1, 1, 1},
-		.max_range = 2,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[13],
-	},
-	[13] = {
-		.name = "6AMRV",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_GEOMAGNETIC_ROTATION_VECTOR,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 4,
-		.axis_scale = {1, 1, 1, 1},
-		.max_range = 2,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[10],
-	},
-	[14] = {
-		.name = "STAP",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_STAP,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {1},
-		.max_range = 1,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[18],
-	},
-	[15] = {
-		.name = "LIFT",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_LIFT,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 2,
-		.axis_scale = {1, 1},
-		.max_range = 1,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[19],
-	},
-	[16] = {
-		.name = "PZOOM",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_PAN_TILT_ZOOM,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 2,
-		.axis_scale = {1, 1},
-		.max_range = 1,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[20],
-	},
-	[17] = {
-		.name = "PHYAC",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_ACTIVITY,
-		.use_case = USE_CASE_CSP,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 2,
-		.axis_scale = {1, 1},
-		.max_range = 1,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[21],
-	},
-	[18] = {
-		.name = "ISACT",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_INSTANT_ACTIVITY,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {1},
-		.max_range = 1,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[22],
-	},
-	[19] = {
-		.name = "SIGMT",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_SIGNIFICANT_MOTION,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 0,
-		.axis_num = 1,
-		.axis_scale = {1},
-		.max_range = 1,
-		.resolution = 1.0,
-		.power = 0.006,
-		.plat_data = &g_info[23],
-	},
-	[20] = {
-		.name = "UACC",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_UNCAL_ACC,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 3,
-		.axis_scale = {0.001, 0.001, 0.001},
-		.max_range = 2,
-		.resolution = 0.000488281,
-		.power = 0.006,
-		.plat_data = &g_info[15],
-	},
-	[21] = {
-		.name = "UCMPS",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_UNCAL_COMP,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 6,
-		.axis_scale = {0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
-		.max_range = 800.0,
-		.resolution = 0.5,
-		.power = 0.35,
-		.plat_data = &g_info[17],
-	},
-	[22] = {
-		.name = "UGYRO",
-		.vendor = "Intel Inc.",
-		.sensor_type = SENSOR_UNCAL_GYRO,
-		.use_case = USE_CASE_HAL,
-		.version = 1,
-		.min_delay = 10000,
-		.axis_num = 6,
-		.axis_scale = {0.000555556, 0.000555556, 0.000555556, 0.000555556, 0.000555556, 0.000555556},
-		.max_range = 11.111111,
-		.resolution = 0.000555556,
-		.power = 6.1,
-		.plat_data = &g_info[16],
-	},
-};
 
 void dispatch_streaming(struct cmd_resp *p_cmd_resp);
 
@@ -1058,7 +125,7 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 	if (!strncmp(buf, CUSTOM_SENSOR_NAME, strlen(CUSTOM_SENSOR_NAME))) {
 		memset (buf, 0, sizeof(buf));
 
-		snprintf(path, sizeof(path), SENSOR_DESCP_PATH, serial_num);
+		snprintf(path, sizeof(path), PROP_DESCP_PATH, serial_num);
 		log_message(DEBUG, "read path %s \n", path);
 		ret = read_sysfs_node(path, buf, sizeof(buf));
 		if (ret < 0) {
@@ -1113,7 +180,7 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 
 					/* read usage_id */
 					strcat(tmp_path, DATA_FIELD_USAGE_ID_FILE);
-					log_message(CRITICAL, "tmp_path %s\n", tmp_path);
+					log_message(DEBUG, "tmp_path %s\n", tmp_path);
 					memset (buf, 0, sizeof(buf));
 					ret = read_sysfs_node(tmp_path, buf, sizeof(buf));
 					if (ret < 0) {
@@ -1356,11 +423,11 @@ static int enable_sensor(unsigned int serial_num, int enabled)
 	snprintf(power_state_str, sizeof(power_state_str), "%d", power_state_val);
 	snprintf(report_state_str, sizeof(report_state_str), "%d", report_state_val);
 
-	ret = set_sensor_property(serial_num, "property_power_state", power_state_str, strlen(power_state_str));
+	ret = set_sensor_property(serial_num, PROP_POWER_STATE, power_state_str, strlen(power_state_str));
 	if (ret)
 		return ret;
 
-	return set_sensor_property(serial_num, "property_reporting_state", report_state_str, strlen(report_state_str));
+	return set_sensor_property(serial_num, PROP_REPORT_STATE, report_state_str, strlen(report_state_str));
 }
 
 static unsigned int sensor_type_to_serial_num(ish_sensor_t sensor_type)
@@ -1382,17 +449,16 @@ static unsigned int sensor_type_to_serial_num(ish_sensor_t sensor_type)
 }
 
 /* 0 on success; -1 on fail */
-int generic_sensor_send_cmd(int tran_id, int cmd_id, ish_sensor_t sensor_type,
-			unsigned short data_rate, unsigned short buffer_delay, unsigned short bit_cfg)
+int generic_sensor_send_cmd(struct cmd_send *cmd)
 {
-	unsigned int serial_num = sensor_type_to_serial_num(sensor_type);
+	unsigned int serial_num = sensor_type_to_serial_num(cmd->sensor_type);
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (serial_num == 0)
 		return -1;
 
-	switch(cmd_id) {
+	switch(cmd->cmd_id) {
 		case CMD_START_STREAMING:
 		{
 			char report_interval_str[MAX_VALUE_LEN];
@@ -1400,9 +466,9 @@ int generic_sensor_send_cmd(int tran_id, int cmd_id, ish_sensor_t sensor_type,
 			if (enable_sensor(serial_num, 1) < 0)
 				return -1;
 
-			snprintf(report_interval_str, sizeof(report_interval_str), "%d", (1000 / data_rate));
+			snprintf(report_interval_str, sizeof(report_interval_str), "%d", (1000 / cmd->start_stream.data_rate));
 
-			set_sensor_property(serial_num, "property_report_interval", report_interval_str, strlen(report_interval_str));
+			set_sensor_property(serial_num, PROP_INTERVAL, report_interval_str, strlen(report_interval_str));
 
 			break;
 		}
@@ -1414,6 +480,50 @@ int generic_sensor_send_cmd(int tran_id, int cmd_id, ish_sensor_t sensor_type,
 
 			break;
 		}
+
+		case CMD_SET_PROPERTY:
+		{
+			if (cmd->set_prop.prop_type == PROP_SENSITIVITY) {
+				char path[MAX_PATH_LEN];
+				DIR *dp;
+
+				snprintf(path, sizeof(path), SENSOR_PROP_PATH, serial_num);
+
+				if ((dp = opendir(path)) != NULL){
+					struct dirent *dirp;
+
+					log_message(DEBUG, "open %s success\n", path);
+
+					while ((dirp = readdir(dp)) != NULL) {
+						if (strstr(dirp->d_name, PROP_SENSITIVITY_SUFFIX)) {
+							char sensitivity_str[MAX_VALUE_LEN];
+
+							snprintf(sensitivity_str, sizeof(sensitivity_str), "%u",
+										*(unsigned int *)cmd->set_prop.value);
+
+							log_message(DEBUG, "get dir %s for property\n", dirp->d_name);
+
+							return set_sensor_property(serial_num, dirp->d_name,
+										sensitivity_str, strlen(sensitivity_str));
+						}
+					}
+
+					log_message(CRITICAL, "Sensor %d not support sensitivity property\n", cmd->sensor_type);
+					return -1;
+				} else {
+					log_message(CRITICAL, "open %s failed\n", path);
+					return -1;
+				}
+			} else {
+				log_message(DEBUG, "Currently, not support other property\n");
+				return -1;
+			}
+
+			break;
+		}
+
+		default:
+			break;
 	}
 
 	return 0;
@@ -1463,6 +573,9 @@ static void generic_sensor_dispatch(int fd)
 	int read_count;
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
+
+	if (fd != hwFdEvent)
+		return;
 
 	while ((read_count = read(hwFdData, buf, sizeof(buf))) > 0) {
 		int cur_point = 0;
