@@ -1000,7 +1000,7 @@ static void start_sensorhubd()
 
 	fixed_maxfd = add_notify_fd(&listen_fds, notifyfds);
 
-	pthread_create(&t, NULL, screen_state_thread, NULL);
+	//pthread_create(&t, NULL, screen_state_thread, NULL);
 
 	log_message(DEBUG,"after sleep thread launch\n");
 
