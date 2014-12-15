@@ -16,10 +16,10 @@ LOCAL_SRC_FILES := \
 LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy libcutils
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 
-ifeq ($(strip $(INTEL_FEATURE_AWARESERVICE)),true)
-LOCAL_SHARED_LIBRARIES += libcontextarbitor
-LOCAL_CFLAGS := -DENABLE_CONTEXT_ARBITOR
-endif
+#ifeq ($(strip $(INTEL_FEATURE_AWARESERVICE)),true)
+#LOCAL_SHARED_LIBRARIES += libcontextarbitor
+#LOCAL_CFLAGS := -DENABLE_CONTEXT_ARBITOR
+#endif
 
 include $(BUILD_EXECUTABLE)
 
