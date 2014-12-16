@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pwd.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <linux/un.h>
 #include <linux/ioctl.h>
@@ -65,13 +66,23 @@
 #define MAX_PATH_LEN			256
 #define MAX_VALUE_LEN			64
 
+static void *saved_sensor_list = NULL;
+unsigned int index_start;
+unsigned int index_end;
+
 static int hwFdData = -1;
 static int hwFdEvent = -1;
 
+static int reset_notifyfds[2];
+
+void sig_handler(int sig)
+{
+	log_message(CRITICAL, "Receive a signel %d! \n", sig);
+	write(reset_notifyfds[1], &sig, sizeof(sig));
+}
+
 /* time different between host and firmware, unit is us*/
 static int64_t time_diff_us = 0;
-static int64_t last_time_synced = 0;
-#define MIN_SYNC_INTERVAL	8	// min sync interval
 
 static int get_time_diff()
 {
@@ -79,15 +90,8 @@ static int get_time_diff()
 	struct smhi_get_time_response resp;
 	struct timespec t;
 	uint64_t cur_time;
-	int32_t temp;
 	int heci_fd = -1;
 	int ret;
-
-	if (last_time_synced == 0)
-		last_time_synced = time(NULL);
-
-	if ((time_diff_us != 0) && (time(NULL) < (last_time_synced + MIN_SYNC_INTERVAL)))
-		return 0;
 
 	if ((heci_fd = heci_open()) == -1) {
 		time_diff_us = 0;
@@ -123,12 +127,7 @@ static int get_time_diff()
 
 	heci_close(heci_fd);
 
-	temp = (int32_t)(cur_time - (resp.time_ms * 1000));
-
-	if ((time_diff_us == 0) || (temp < time_diff_us))
-		time_diff_us = temp;
-
-	last_time_synced = time(NULL);
+	time_diff_us = (int32_t)(cur_time - (resp.time_ms * 1000));
 
 	return ERROR_NONE;
 }
@@ -570,8 +569,13 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 	FILE *file;
 	int try_count;
 	int file_num;
+	struct sigaction usr_action;
+	sigset_t block_mask;
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
+
+	saved_sensor_list = p_sensor_list;
+	index_start = *index;
 
 	try_count = 0;
 	file_num = 0;
@@ -624,6 +628,8 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 		closedir(dp);
 	}
 
+	index_end = *index;
+
 	hwFdData = open(SENSOR_DATA_PATH, O_RDONLY);
 	if (hwFdData < 0 ) {
 		log_message(CRITICAL, "%s open %s error, error %s\n", __func__, SENSOR_DATA_PATH, strerror(errno));
@@ -631,19 +637,166 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 	}
 
 	/* use /dev/sensor-collection for event polling */
-	hwFdEvent = open(SENSOR_EVENT_PATH, O_RDONLY);
+	hwFdEvent = open(SENSOR_EVENT_PATH, O_RDWR);
 	if(hwFdEvent < 0) {
 		log_message(CRITICAL, "%s open event node error, error %s\n",__func__, strerror(errno));
 		return ERROR_NOT_AVAILABLE;
 	}
 
+	/* sync ishfw time with host */
 	if (get_time_diff())
 		log_message(CRITICAL, "get_time_diff failed \n");
+
+	/* create pipe for send ishfw reset signal */
+	if (pipe(reset_notifyfds) < 0) {
+		log_message(CRITICAL, "failed to create pipe for reset signal notification! \n");
+		return ERROR_NOT_AVAILABLE;
+	}
+
+	sigemptyset(&block_mask);
+	usr_action.sa_handler = sig_handler;
+	usr_action.sa_mask = block_mask;
+	usr_action.sa_flags = SA_NODEFER;
+	sigaction(SIGUSR1, &usr_action, NULL);
 
 	log_message(DEBUG, "[%s] exit\n", __func__);
 
 	return ERROR_NONE;
 }
+
+static int reenum_generic_sensors(void *p_sensor_list, unsigned int start, unsigned int end)
+{
+	int try_count = 0;
+	int file_num = 0;
+	unsigned int check_num = 0;
+	unsigned int num = end - start;
+
+	if ((p_sensor_list == NULL) || (start == end))
+		return ERROR_NOT_AVAILABLE;
+
+	while (try_count < WAITING_SENSOR_UP_TIME) {
+		DIR *dp;
+
+		if ((dp = opendir(SENSOR_COL_PATH)) != NULL){
+			struct dirent *dirp;
+			int num_tmp = 0;
+
+			log_message(DEBUG, "open %s success\n", SENSOR_COL_PATH);
+
+			while ((dirp = readdir(dp)) != NULL)
+				num_tmp++;
+
+			closedir(dp);
+
+			log_message(DEBUG, "find %d dirs\n", num_tmp);
+
+			if ((num_tmp != file_num) || (num_tmp <= MAX_SENSOR_DIR_NUM))
+				file_num = num_tmp;
+			else
+				break;
+		}
+
+		sleep(1);
+		try_count++;
+	}
+
+	if (try_count != WAITING_SENSOR_UP_TIME && file_num != 0) {
+		DIR *dp = opendir(SENSOR_COL_PATH);
+		struct dirent *dirp;
+		sensor_state_t *tmp_list = p_sensor_list;
+		unsigned int i;
+
+		if (dp == NULL)
+			return ERROR_NOT_AVAILABLE;
+
+		for (i = 0; i < num; i++) {
+			generic_sensor_info_t *g_tmp = (generic_sensor_info_t *)((tmp_list + start + i)->sensor_info->plat_data);
+			g_tmp->installed = 0;
+		}
+
+		while ((dirp = readdir(dp)) != NULL) {
+			if (strncmp(dirp->d_name, SENSOR_DIR_PREFIX, strlen(SENSOR_DIR_PREFIX)) == 0) {
+				unsigned int serial_num = get_serial_num(dirp->d_name);
+				char path[MAX_PATH_LEN];
+				char buf[MAX_VALUE_LEN];
+				int ret;
+
+				log_message(DEBUG, "process dir %s\n", dirp->d_name);
+
+				if (serial_num == 0) {
+					log_message(CRITICAL, "dir %s isn't a valid dir for sensor\n", dirp->d_name);
+					continue;
+				}
+
+				snprintf(path, sizeof(path), SENSOR_NAME_PATH, serial_num);
+				ret = read_sysfs_node(path, buf, sizeof(buf));
+				log_message(DEBUG, "open path %s - %s\n", path, buf);
+				if (ret < 0) {
+					log_message(CRITICAL, "read path %s failed\n", path);
+					continue;
+				}
+
+				if (!strncmp(buf, CUSTOM_SENSOR_NAME, strlen(CUSTOM_SENSOR_NAME))) {
+					memset (buf, 0, sizeof(buf));
+
+					snprintf(path, sizeof(path), PROP_DESCP_PATH, serial_num);
+					log_message(DEBUG, "read path %s \n", path);
+					ret = read_sysfs_node(path, buf, sizeof(buf));
+					if (ret < 0) {
+						log_message(CRITICAL, "read path %s failed\n", path);
+						continue;
+					}
+				}
+
+				for (i = 0; i < num; i++) {
+					generic_sensor_info_t *g_tmp = (generic_sensor_info_t *)((tmp_list + start + i)->sensor_info->plat_data);
+
+					if (g_tmp->installed)
+						continue;
+
+					if (!strncmp(buf, g_tmp->friend_name, strlen(g_tmp->friend_name))) {
+						check_num++;
+
+						log_message(CRITICAL, "reenum sensor serial_num matched from %x to %x\n",
+												g_tmp->serial_num, serial_num);
+
+						if (g_tmp->serial_num != serial_num) {
+							log_message(CRITICAL, "sensor serial_num changed from %x to %x\n",
+												g_tmp->serial_num, serial_num);
+							g_tmp->serial_num = serial_num;
+						}
+
+						g_tmp->installed = 1;
+
+						/* restart sensor */
+						if ((tmp_list + start + i)->data_rate) {
+							struct cmd_send cmd;
+							sensor_state_t *tmp_state = (tmp_list + start + i);
+
+							cmd.tran_id = 0;
+							cmd.cmd_id = CMD_START_STREAMING;
+							cmd.sensor_type = tmp_state->sensor_info->sensor_type;
+							cmd.start_stream.data_rate = tmp_state->data_rate;
+							cmd.start_stream.buffer_delay = tmp_state->buffer_delay;
+							generic_sensor_send_cmd(&cmd);
+						}
+					}
+				}
+			}
+		}
+
+		closedir(dp);
+	}
+
+	if (check_num != num)
+		log_message(DEBUG, "Sensor number not match after re-enum (org:%d, now:%d)\n", num, check_num);
+
+	if (check_num == 0)
+		return ERROR_NOT_AVAILABLE;
+	else
+		return ERROR_NONE;
+}
+
 
 /* 0 on success; -1 on fail */
 int generic_sensor_send_cmd(struct cmd_send *cmd)
@@ -868,7 +1021,18 @@ static void generic_sensor_dispatch(int fd)
 
 int process_generic_sensor_fd(int fd)
 {
-	generic_sensor_dispatch(fd);
+	if (fd == hwFdEvent) {
+		generic_sensor_dispatch(fd);
+	} else if (fd == reset_notifyfds[0]) {
+		char buf[10];
+
+		read(reset_notifyfds[0], buf, sizeof(buf));
+		reenum_generic_sensors(saved_sensor_list, index_start, index_end);
+
+		/* re-sync ishfw time with host */
+		if (get_time_diff())
+			log_message(CRITICAL, "get_time_diff failed \n");
+	}
 
 	return ERROR_NONE;
 }
@@ -880,19 +1044,29 @@ int add_generic_sensor_fds(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_n
 	int new_max_fd = maxfd;
 
 	if (hwFdEvent < 0)
-		return maxfd;
+		return new_max_fd;
 
 	FD_SET(hwFdEvent, (fd_set*)read_fds);
 
 	if (hwFdEvent > new_max_fd)
 		new_max_fd = hwFdEvent;
 
+	hw_fds[*hw_fds_num] = hwFdEvent;
 	(*hw_fds_num)++;
-
-	hw_fds[0] = hwFdEvent;
 
 	/* read from event sysfs entry before select */
 	tmpRead = read(hwFdEvent, tmpBuf, 1024);
+
+	if (reset_notifyfds[0] < 0)
+		return new_max_fd;
+
+	FD_SET(reset_notifyfds[0], (fd_set*)read_fds);
+
+	if (reset_notifyfds[0] > new_max_fd)
+		new_max_fd = reset_notifyfds[0];
+
+	hw_fds[*hw_fds_num] = reset_notifyfds[0];
+	(*hw_fds_num)++;
 
 	return new_max_fd;
 }
