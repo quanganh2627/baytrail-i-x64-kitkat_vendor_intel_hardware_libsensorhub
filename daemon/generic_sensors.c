@@ -148,6 +148,7 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 			DIR *dp;
 
 			log_message(DEBUG, "match a sensor name %d\n", serial_num);
+			log_message(CRITICAL, "match a sensor name %s, serial %x\n", buf, serial_num);
 
 			g_tmp->serial_num = serial_num;
 

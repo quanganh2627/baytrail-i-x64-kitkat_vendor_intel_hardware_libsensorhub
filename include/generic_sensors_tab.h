@@ -342,9 +342,9 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 10,
 		},
 	},
-	/* index 14 -- Device Orientation */
+	/* index 14 -- Magnetic */
 	[14] = {
-		.friend_name = "0x8A",
+		.friend_name = "0x7d",
 		.data_field[0] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
 			.exposed = 1,
@@ -358,17 +358,12 @@ generic_sensor_info_t g_info[] = {
 		.data_field[2] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
-			.exposed_offset = 6,
+			.exposed_offset = 8,
 		},
 		.data_field[3] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
-			.exposed_offset = 8,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 10,
+			.exposed_offset = 12,
 		},
 	},
 	/* index 15 -UACC- uncalibrated accelerometer */
@@ -778,7 +773,7 @@ sensor_info_t g_sensor_info[] = {
 		.max_range = 800.0,
 		.resolution = 0.5,
 		.power = 0.35,
-		.plat_data = &g_info[2],
+		.plat_data = &g_info[14],
 	},
 	[4] = {
 		.name = "GYRO",
