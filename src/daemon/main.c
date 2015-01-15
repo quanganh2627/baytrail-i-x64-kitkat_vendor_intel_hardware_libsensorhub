@@ -84,7 +84,8 @@ typedef struct session_state_t {
 	char flag;		// To differentiate between no_stop (0) and no_stop_no_report (1)
 	int get_single;		// 1: pending; 0: not pending
 	int get_calibration;	// 1: calibration state is getting by external session; 0: calibration state is auto report
-	int flush_streaming;	// non_zero: sensor unit data size; 0: not pending
+	int flush_complete_event_size;	// non_zero: sensor unit data size; 0: not pending
+        int flush_count;        // non_zero: flush count; 0: not pending
 	int get_property;	// 1: waiting for get property message; 0: no waiting
 	int datafd;
 	char datafd_invalid;
@@ -642,7 +643,8 @@ static void flush_streaming(sensor_state_t *p_sensor_state, session_state_t *p_s
 	if (p_session_state->state == INACTIVE)
 		return;
 
-	p_session_state->flush_streaming = data_unit_size;
+	p_session_state->flush_complete_event_size = data_unit_size;
+	p_session_state->flush_count++;
 
 	send_control_cmd(p_session_state->trans_id, cmd_type_to_cmd_id[CMD_FLUSH_STREAMING], 0, 4, 0, 0);
 }
@@ -1845,12 +1847,12 @@ static void dispatch_flush()
 		session_state_t *p_session_state = sensor_list[i].list;
 
 		for (; p_session_state != NULL; p_session_state = p_session_state->next) {
-			if ((p_session_state->flush_streaming != 0) && (p_session_state->flush_streaming <= MAX_UNIT_SIZE)) {
-				if (send(p_session_state->datafd, flush_completion_frame, p_session_state->flush_streaming, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+                        while (p_session_state->flush_count > 0 && (p_session_state->flush_complete_event_size <= MAX_UNIT_SIZE)) {
+                                p_session_state->flush_count--;
+                                if (send(p_session_state->datafd, flush_completion_frame, p_session_state->flush_complete_event_size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
                                         ALOGE("%s line: %d: send message to client error: %s name: %s", __FUNCTION__, __LINE__, strerror(errno), sensor_list[i].name);
-                                        return;
+                                        continue;
                                 }
-				p_session_state->flush_streaming = 0;
 			}
 		}
 
