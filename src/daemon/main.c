@@ -87,6 +87,8 @@ typedef struct session_state_t {
 	int flush_complete_event_size;	// non_zero: sensor unit data size; 0: not pending
         int flush_count;        // non_zero: flush count; 0: not pending
 	int get_property;	// 1: waiting for get property message; 0: no waiting
+        int set_property_count;
+        int set_property_ack;
 	int datafd;
 	char datafd_invalid;
 	int ctlfd;
@@ -1368,7 +1370,7 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 		for (i = 0; i < out_option->len; i++) {
 			send_set_property(p_sensor_state, p_session_state, out_option->items[i].prop, out_option->items[i].size, (unsigned char *)out_option->items[i].value);
 		}
-
+                p_session_state->set_property_count = i;
 		if (out_option->len == 0)
 			*reply_now = 1;
 
@@ -1376,6 +1378,7 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 #endif
 #ifndef ENABLE_CONTEXT_ARBITOR
 		send_set_property(p_sensor_state, p_session_state, p_cmd->parameter, p_cmd->parameter1, p_cmd->buf);	// property type, property size, property value
+                p_session_state->set_property_count = 1;
 #endif
 	} else if (cmd == CMD_GET_PROPERTY) {
 		send_get_property(p_sensor_state, p_session_state, p_cmd->parameter, p_cmd->buf);
@@ -1704,6 +1707,14 @@ static void dispatch_cmd_ack(struct cmd_resp *p_cmd_resp)
 	p_session_state = get_session_state_with_trans_id(trans_id);
 	if (!p_session_state)
 		return;
+
+        if (resp_ack->cmd_id == cmd_type_to_cmd_id[CMD_SET_PROPERTY]) {
+                p_session_state->set_property_ack++;
+                if (p_session_state->set_property_ack < p_session_state->set_property_count)
+                        return;
+                p_session_state->set_property_ack = 0;
+                p_session_state->set_property_count = 0;
+        }
 
 	p_cmd_ack->event_type = EVENT_CMD_ACK;
 	p_cmd_ack->ret = resp_ack->ret;
