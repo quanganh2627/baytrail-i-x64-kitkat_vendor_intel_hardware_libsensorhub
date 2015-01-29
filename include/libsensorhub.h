@@ -285,7 +285,7 @@ struct ps_phy_data {
 
 struct gesture_flick_data {
 	int32_t ts;
-	short flick;
+	unsigned char flick;
 } __attribute__ ((packed));
 
 struct shaking_data {
@@ -295,7 +295,7 @@ struct shaking_data {
 
 struct stap_data {
 	int32_t ts;
-	short stap;
+	unsigned char stap;
 } __attribute__ ((packed));
 
 struct pz_data {
