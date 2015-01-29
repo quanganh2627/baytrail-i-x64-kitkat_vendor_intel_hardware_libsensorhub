@@ -373,7 +373,8 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 		cmd_ack->buf_len = j * sizeof(sensor_info_t);
 		cmd_ack->ret = SUCCESS;
 
-		send(p_session_state->ctlfd, cmd_ack, sizeof(cmd_ack_event) + cmd_ack->buf_len, 0);
+		if (send(p_session_state->ctlfd, cmd_ack, sizeof(cmd_ack_event) + cmd_ack->buf_len, 0) < 0)
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
 
 		free(cmd_ack);
 
@@ -384,7 +385,8 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 		cmd_ack.event_type = EVENT_CMD_ACK;
 		cmd_ack.ret = ERR_NO_MEMORY;
 
-		send(p_session_state->ctlfd, &cmd_ack, sizeof(cmd_ack), 0);
+		if (send(p_session_state->ctlfd, &cmd_ack, sizeof(cmd_ack), 0) < 0)
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
 
 		return ERR_NO_MEMORY;
 	}
@@ -623,7 +625,10 @@ static void handle_message(int fd, char *message)
 		if ((p_sensor_state = get_sensor_state_with_name(p_hello_with_sensor_type->name)) == NULL) {
 			hello_with_sensor_type_ack.event_type = EVENT_HELLO_WITH_SENSOR_TYPE;
 			hello_with_sensor_type_ack.session_id = 0;
-			send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0);
+
+			if (send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0) < 0)
+				log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+
 			log_message(CRITICAL, "sensor type %s not supported \n", p_hello_with_sensor_type->name);
 			return;
 		}
@@ -634,8 +639,8 @@ static void handle_message(int fd, char *message)
 		hello_with_sensor_type_ack.event_type =
 					EVENT_HELLO_WITH_SENSOR_TYPE_ACK;
 		hello_with_sensor_type_ack.session_id = session_id;
-		send(fd, &hello_with_sensor_type_ack,
-			sizeof(hello_with_sensor_type_ack), 0);
+		if (send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0) < 0)
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
 
 		p_session_state = (session_state_t*) malloc(sizeof(session_state_t));
 		if (p_session_state == NULL) {
@@ -671,8 +676,9 @@ static void handle_message(int fd, char *message)
 		hello_with_session_id_ack.event_type =
 					EVENT_HELLO_WITH_SESSION_ID_ACK;
 		hello_with_session_id_ack.ret = SUCCESS;
-		send(fd, &hello_with_session_id_ack,
-				sizeof(hello_with_session_id_ack), 0);
+
+		if (send(fd, &hello_with_session_id_ack, sizeof(hello_with_session_id_ack), 0) < 0)
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
 
 	} else if (event_type == EVENT_CMD) {
 		ret_t ret;
@@ -688,7 +694,9 @@ static void handle_message(int fd, char *message)
 
 		cmd_ack.event_type = EVENT_CMD_ACK;
 		cmd_ack.ret = ret;
-		send(fd, &cmd_ack, sizeof(cmd_ack), 0);
+
+		if (send(fd, &cmd_ack, sizeof(cmd_ack), 0) < 0)
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
 	} else {
 		/* TODO: unknown message and drop it */
 	}
@@ -1112,6 +1120,9 @@ int main(int argc, char **argv)
 
 	set_log_file(log_file);
 	set_log_level((message_level)log_level);
+
+	/* Ignore SIGPIPE */
+	signal(SIGPIPE, SIG_IGN);
 
 	while (1) {
 		static struct option opts[] = {
