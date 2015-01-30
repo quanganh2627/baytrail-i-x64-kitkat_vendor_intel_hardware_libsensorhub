@@ -103,6 +103,46 @@ static void dump_light_data(int fd)
 	}
 }
 
+static void dump_pressure_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct baro_raw_data *p_baro_raw_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_baro_raw_data = (struct baro_raw_data *)buf;
+		while (size > 0) {
+		printf("pressure is: %d, size is %d \n",
+					p_baro_raw_data->p, size);
+			size = size - sizeof(struct baro_raw_data);
+			p = p + sizeof(struct baro_raw_data);
+			p_baro_raw_data = (struct baro_raw_data *)p;
+		}
+	}
+}
+
+static void dump_proximity_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct ps_phy_data *p_ps_phy_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_ps_phy_data = (struct ps_phy_data *)buf;
+		while (size > 0) {
+		printf("proximity is: %d, size is %d \n",
+					p_ps_phy_data->near, size);
+			size = size - sizeof(struct ps_phy_data);
+			p = p + sizeof(struct ps_phy_data);
+			p_ps_phy_data = (struct ps_phy_data *)p;
+		}
+	}
+}
+
 static void dump_stepc_data(int fd)
 {
 	char buf[512];
@@ -355,6 +395,12 @@ int main(int argc, char **argv)
 		dump_gyro_data(fd);
 	else if (strncmp(sensor_name, "COMPS", SNR_NAME_MAX_LEN) == 0)
 		dump_comp_data(fd);
+	else if (strncmp(sensor_name, "ALS_P", SNR_NAME_MAX_LEN) == 0)
+		dump_light_data(fd);
+	else if (strncmp(sensor_name, "PS_P", SNR_NAME_MAX_LEN) == 0)
+		dump_proximity_data(fd);
+	else if (strncmp(sensor_name, "BARO", SNR_NAME_MAX_LEN) == 0)
+		dump_pressure_data(fd);
 	else if (strncmp(sensor_name, "SDET", SNR_NAME_MAX_LEN) == 0)
 		dump_stepd_data(fd);
 	else if (strncmp(sensor_name, "SCOUN", SNR_NAME_MAX_LEN) == 0)
