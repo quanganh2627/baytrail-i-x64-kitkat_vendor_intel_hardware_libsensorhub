@@ -3,11 +3,13 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <dirent.h>
+#include <time.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <pwd.h>
 #include <sys/socket.h>
 #include <linux/un.h>
+#include <linux/ioctl.h>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,6 +22,7 @@
 #include "message.h"
 #include "generic_sensors.h"
 #include "generic_sensors_tab.h"
+#include "generic_sensor_heci.h"
 
 /* used to broadcast sensorhub is up */
 #define SENSOR_UP_FILE			"/data/sensorsUp"
@@ -51,7 +54,6 @@
 #define DATA_FIELD_INDEX_FILE		"index"
 #define DATA_FIELD_LENGTH_FILE		"length"
 
-
 #define SENSOR_DIR_PREFIX		"sensor_"
 #define SENSOR_DIR_SUFFIX		"_def"
 
@@ -64,6 +66,52 @@ void dispatch_streaming(struct cmd_resp *p_cmd_resp);
 
 static int hwFdData = -1;
 static int hwFdEvent = -1;
+
+/* time different between host and firmware, unit is oms*/
+static int32_t time_diff_oms;
+
+int get_time_diff()
+{
+	SMHI_MSG_HEADER req;
+	SMHI_GET_TIME_RESPONSE resp;
+	struct timespec t;
+	uint64_t cur_time;
+	int heci_fd = heci_open();
+
+	if (heci_fd == -1) {
+		time_diff_oms = 0;
+		log_message(CRITICAL, "can not open heci! \n");
+		return -1;
+	}
+
+	memset(req.reserved, 0, sizeof(req.reserved));
+	req.status = 0;
+	req.is_response = 0;
+	req.command = SMHI_GET_TIME;
+
+	/* get current host time, unit is ns */
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	cur_time = (t.tv_sec * 1000) + (t.tv_nsec / 1000000);
+	log_message(CRITICAL, "get current time %ld\n", cur_time);
+
+	/* get current firmware time, unit is ms */
+	heci_write(heci_fd, (void *)&req, sizeof(req));
+
+	heci_read(heci_fd, (void *)&resp, sizeof(resp));
+	if (resp.header.status) {
+		time_diff_oms = 0;
+		log_message(CRITICAL, "get time from heci failed! \n");
+		return -1;
+	}
+
+	heci_close(heci_fd);
+
+	log_message(CRITICAL, "get firmware time %ld\n", resp.time_ms);
+
+	time_diff_oms = (int32_t)((cur_time - resp.time_ms) << 3);
+
+	return 0;
+}
 
 int get_serial_num(char *dir_name)
 {
@@ -364,6 +412,9 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 		system("chmod 666 /data/sensorsUp");
 	}
 
+	if (get_time_diff())
+		log_message(CRITICAL, "get_time_diff failed \n");
+
 	log_message(DEBUG, "[%s] exit\n", __func__);
 
 	return 0;
@@ -624,6 +675,12 @@ static void generic_sensor_dispatch(int fd)
 				outdata_offset = p_g_sens_inf->data_field[i].exposed_offset;
 
 				memcpy((char *)p_cmd_resp->buf + outdata_offset, tmp_buf + offset, length);
+
+				if (p_g_sens_inf->data_field[i].usage_id == USAGE_SENSOR_DATA_CUSTOM_VALUE_28) {
+					int32_t *ts = (int32_t *)((char *)p_cmd_resp->buf + outdata_offset);
+					log_message(DEBUG, "ts change from %d to %d\n", *ts, (*ts + time_diff_oms));
+					*ts = *ts + time_diff_oms;
+				}
 			}
 
 			dispatch_streaming(p_cmd_resp);
