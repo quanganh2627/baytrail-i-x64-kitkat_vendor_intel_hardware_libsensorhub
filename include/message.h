@@ -26,6 +26,8 @@ typedef struct session_state_t {
 	session_id_t session_id;
 	unsigned int data_rate;
 	unsigned int buffer_delay;
+	int flush_complete_event_size;  // Flush flag: non_zero - sensor unit data size; 0 - not pending
+        int flush_count;		// non_zero - flush count; 0 - not pending
 	void *handle;
 	struct session_state_t *next;
 } session_state_t;
@@ -153,8 +155,13 @@ enum resp_type {
 	RESP_CMD_ACK,
 	RESP_GET_TIME,
 	RESP_STREAMING,
+	RESP_FLUSH,
 };
 
 #define MAX_SENSOR_INDEX 50
+
+/* There are helper callbacks which can be used in every platform adapter */
+void dispatch_streaming(struct cmd_resp *p_cmd_resp);
+void dispatch_flush();
 
 #endif

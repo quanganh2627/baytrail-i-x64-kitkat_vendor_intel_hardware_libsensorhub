@@ -46,6 +46,8 @@ static int enable_debug_data_rate = 0;
 sensor_state_t sensor_list[MAX_SENSOR_INDEX];
 unsigned int current_sensor_index = 0;	// means the current empty slot of sensor_list[]
 
+static char flush_completion_frame[MAX_UNIT_SIZE];
+
 sensor_state_t* get_sensor_state_with_type(ish_sensor_t sensor_type)
 {
 	unsigned int i;
@@ -310,10 +312,17 @@ static int send_control_cmd(struct cmd_send *cmd)
 {
 	int i, j;
 	sensor_state_t *state = get_sensor_state_with_type(cmd->sensor_type);
-	unsigned int index = state->index;
-	int ret;
+	unsigned int index;
+	int ret = ERROR_NONE;
+
+	if (state == NULL) {
+		log_message(CRITICAL, "[%s]: Invalid sensor type!\n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
 
 	log_message(DEBUG, "[%s]: cmd_id %d, sensor_type %d\n", __func__, cmd->cmd_id, cmd->sensor_type);
+
+	index = state->index;
 
 	i = sizeof(ish_platf) / sizeof(ish_platform_t);
 	for (j = 0; j < i; j++)
@@ -331,6 +340,21 @@ static int send_set_property(sensor_state_t *p_sensor_state, session_state_t *p_
 	int ret;
 
 	log_message(DEBUG, "[%s] enter", __func__);
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
+
+	if (p_session_state == NULL) {
+		log_message(CRITICAL, "%s: p_session_state is NULL \n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
+
+	if (value == NULL) {
+		log_message(CRITICAL, "%s: value buf is NULL\n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
 
 	cmd.tran_id = 0;
 	cmd.cmd_id = CMD_SET_PROPERTY;
@@ -351,6 +375,16 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 	ish_usecase_t usecase = (ish_usecase_t)*value;
 
 	log_message(DEBUG, "[%s] enter", __func__);
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
+
+	if (p_session_state == NULL) {
+		log_message(CRITICAL, "%s: p_session_state is NULL \n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
 
 	if (len != sizeof(ish_usecase_t))
 		return ERR_WRONG_PARAMETER;
@@ -396,6 +430,21 @@ static int send_get_property(sensor_state_t *p_sensor_state, session_state_t *p_
 								int len, unsigned char *value)
 {
 	log_message(DEBUG, "[%s] enter", __func__);
+
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
+
+	if (p_session_state == NULL) {
+		log_message(CRITICAL, "%s: p_session_state is NULL \n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
+
+	if (value == NULL) {
+		log_message(CRITICAL, "%s: value buf is NULL\n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
 
 	if (p_sensor_state->sensor_info->sensor_type == SENSOR_BIST)
 		return process_bist_get_property(p_sensor_state, p_session_state, len, value);
@@ -534,8 +583,26 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 			buffer_delay_arbitered);
 }
 
+static void flush_streaming(sensor_state_t *p_sensor_state, session_state_t *p_session_state, int data_unit_size)
+{
+	struct cmd_send cmd;
 
+	if (p_sensor_state == NULL) {
+		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
+		return;
+	}
 
+	if (p_session_state->state == INACTIVE)
+		return;
+
+	p_session_state->flush_complete_event_size = data_unit_size;
+	p_session_state->flush_count++;
+
+	cmd.tran_id = 0;
+	cmd.cmd_id = CMD_FLUSH_STREAMING;
+	cmd.sensor_type = p_sensor_state->sensor_info->sensor_type;
+	send_control_cmd(&cmd);
+}
 
 static int recalculate_data_rate(sensor_state_t *p_sensor_state, int data_rate)
 {
@@ -575,6 +642,8 @@ static ret_t handle_cmd(int fd, cmd_event* p_cmd, int parameter, int parameter1,
 					data_rate_calculated, parameter1, parameter2);
 	} else if (cmd == CMD_STOP_STREAMING) {
 		stop_streaming(p_sensor_state, p_session_state);
+	} else if (cmd == CMD_FLUSH_STREAMING) {
+		flush_streaming(p_sensor_state, p_session_state, parameter);
 	} else if (cmd == CMD_SET_PROPERTY) {
 #ifdef ENABLE_CONTEXT_ARBITOR
 		ctx_option_t *out_option = NULL;
@@ -804,6 +873,33 @@ void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 	}
 
 	send_data_to_clients(p_sensor_state, p_cmd_resp->buf, p_cmd_resp->data_len);
+}
+
+void dispatch_flush()
+{
+	unsigned int i;
+
+        for (i = 0; i < current_sensor_index; i ++) {
+		session_state_t *p_session_state = sensor_list[i].list;
+
+		for (; p_session_state != NULL; p_session_state = p_session_state->next) {
+                        while (p_session_state->flush_count > 0 && (p_session_state->flush_complete_event_size <= MAX_UNIT_SIZE)) {
+
+                                p_session_state->flush_count--;
+				log_message(DEBUG, "dispatch flush %s\n", sensor_list[i].sensor_info->name);
+
+                                if (send(p_session_state->datafd, flush_completion_frame,
+					p_session_state->flush_complete_event_size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
+                                        log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+								__func__, __LINE__, strerror(errno), sensor_list[i].sensor_info->name);
+                                        continue;
+                                }
+			}
+		}
+
+        }
+
+	return;
 }
 
 static void remove_session_by_fd(int fd)
@@ -1123,6 +1219,8 @@ int main(int argc, char **argv)
 
 	/* Ignore SIGPIPE */
 	signal(SIGPIPE, SIG_IGN);
+
+	memset(flush_completion_frame, 0xff, sizeof(flush_completion_frame));
 
 	while (1) {
 		static struct option opts[] = {
