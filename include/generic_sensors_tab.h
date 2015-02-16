@@ -344,7 +344,7 @@ generic_sensor_info_t g_info[] = {
 	},
 	/* index 14 -- Magnetic */
 	[14] = {
-		.friend_name = "0x7d",
+		.friend_name = "0x20f",
 		.data_field[0] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
 			.exposed = 1,
