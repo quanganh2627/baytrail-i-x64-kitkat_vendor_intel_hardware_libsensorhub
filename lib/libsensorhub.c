@@ -437,10 +437,8 @@ error_t get_sensors_list(ish_usecase_t usecase, void *buf, int *sensor_num)
 		return ERROR_NOT_AVAILABLE;
 
 	ret = ish_get_property_with_size(handle, sizeof(usecase), &usecase, &size, buf);
-	if (ret < 0) {
-		ish_close_session(handle);
+	if (ret < 0)
 		return ERROR_NOT_AVAILABLE;
-	}
 
 	*sensor_num = size / sizeof(sensor_info_t);
 
