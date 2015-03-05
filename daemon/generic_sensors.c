@@ -71,10 +71,12 @@
 static int hwFdData = -1;
 static int hwFdEvent = -1;
 
-static int flush = 0;
+static int manual_flush = 0;
 
 /* time different between host and firmware, unit is oms*/
-static int32_t time_diff_oms;
+static int32_t time_diff_oms = 0;
+static int64_t last_time_synced = 0;
+#define MIN_SYNC_INTERVAL	10	// min sync interval
 
 static int get_time_diff()
 {
@@ -82,39 +84,49 @@ static int get_time_diff()
 	SMHI_GET_TIME_RESPONSE resp;
 	struct timespec t;
 	uint64_t cur_time;
-	int heci_fd = heci_open();
+	int heci_fd = -1;
 
-	if (heci_fd == -1) {
+	if (last_time_synced == 0)
+		last_time_synced = time(NULL);
+
+	if ((time_diff_oms != 0) && (time(NULL) < (last_time_synced + MIN_SYNC_INTERVAL)))
+			return 0;
+
+	if ((heci_fd = heci_open()) == -1) {
 		time_diff_oms = 0;
 		log_message(CRITICAL, "can not open heci! \n");
 		return -1;
 	}
+
+	/* get current host time, unit is ns, change to ms */
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	cur_time = (t.tv_sec * 1000) + (t.tv_nsec / 1000000);
+	log_message(DEBUG, "get current time %ld\n", cur_time);
 
 	memset(req.reserved, 0, sizeof(req.reserved));
 	req.status = 0;
 	req.is_response = 0;
 	req.command = SMHI_GET_TIME;
 
-	/* get current host time, unit is ns */
-	clock_gettime(CLOCK_MONOTONIC, &t);
-	cur_time = (t.tv_sec * 1000) + (t.tv_nsec / 1000000);
-	log_message(CRITICAL, "get current time %ld\n", cur_time);
-
-	/* get current firmware time, unit is ms */
+	/* send the GET_TIME cmd */
 	heci_write(heci_fd, (void *)&req, sizeof(req));
 
+	/* get current firmware time, unit is ms */
 	heci_read(heci_fd, (void *)&resp, sizeof(resp));
 	if (resp.header.status) {
 		time_diff_oms = 0;
+		heci_close(heci_fd);
 		log_message(CRITICAL, "get time from heci failed! \n");
 		return -1;
 	}
 
 	heci_close(heci_fd);
 
-	log_message(CRITICAL, "get firmware time %ld\n", resp.time_ms);
+	log_message(DEBUG, "get firmware time %ld\n", resp.time_ms);
 
 	time_diff_oms = (int32_t)((cur_time - resp.time_ms) << 3);
+
+	last_time_synced = time(NULL);
 
 	return 0;
 }
@@ -189,7 +201,7 @@ static char *create_path(char *dest, const char *src1, const char *src2, unsigne
 		return NULL;
 
 	memset(dest, 0, max_size);
-	memcpy(dest, src1, len1);
+	strcpy(dest, src1);
 	strcat(dest, src2);
 
 	return dest;
@@ -214,7 +226,9 @@ static char *strcat_path(char *dest, const char *src1, const char *src2, unsigne
 		return NULL;
 
 	strcat(dest, src1);
-	strcat(dest, src2);
+
+	if (src2)
+		strcat(dest, src2);
 
 	return dest;
 }
@@ -686,6 +700,9 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 
 		case CMD_FLUSH_STREAMING:
 		{
+			manual_flush = 1;
+
+			/* disable ishfw flush, because ishfw not ready yet!
 			char path[MAX_PATH_LEN];
 			char buf[MAX_VALUE_LEN];
 			int ret;
@@ -695,9 +712,9 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 			ret = read_sysfs_node(path, buf, sizeof(buf));
 			if (ret < 0) {
 				log_message(CRITICAL, "read path %s failed\n", path);
-				//return -1;
-				flush = 1;
+				return -1;
 			}
+			*/
 
 			break;
 		}
@@ -789,10 +806,13 @@ static void generic_sensor_dispatch(int fd)
 	if (fd != hwFdEvent)
 		return;
 
-	if (flush) {
+	if (get_time_diff())
+		log_message(CRITICAL, "get_time_diff failed \n");
+
+	if (manual_flush) {
 		log_message(CRITICAL, "just a workaround before fw batch mode ready, flush manually\n");
 		dispatch_flush();
-		flush = 0;
+		manual_flush = 0;
 	}
 
 	while ((read_count = read(hwFdData, buf, sizeof(buf))) > 0) {
@@ -813,29 +833,33 @@ static void generic_sensor_dispatch(int fd)
 			/* cur_point move to next sample */
 			cur_point += sample->size;
 
-			p_sens_inf = get_sensor_info_by_serial_num(sample->id);
-			if (p_sens_inf)
-				p_g_sens_inf = (generic_sensor_info_t *)p_sens_inf->plat_data;
-			else
-				continue;
-
-			real_data_len = get_real_sensor_data_size(p_sens_inf);
-			if (real_data_len > sample->size)
-				continue;
-
-			p_cmd_resp = (struct cmd_resp *)malloc(sizeof(struct cmd_resp) + real_data_len);
-			if (p_cmd_resp == NULL)
-				continue;
-
 			if (sample->id & PSEUSDO_EVENT_BIT) {
 				int flag = *((int *)sample->data);
 
-				if (flag & FLUSH_CMPL_BIT)
-					dispatch_flush();
+				log_message(DEBUG, "get pseusdo event\n");
 
-				log_message(CRITICAL, "flushing...\n");
+				if (flag & FLUSH_CMPL_BIT) {
+					dispatch_flush();
+					log_message(DEBUG, "flush sensor data...\n");
+				}
 
 			} else {
+				p_sens_inf = get_sensor_info_by_serial_num(sample->id);
+				if (p_sens_inf)
+					p_g_sens_inf = (generic_sensor_info_t *)p_sens_inf->plat_data;
+				else {
+					log_message(CRITICAL, "found unknow sample id 0x%x\n", sample->id);
+					continue;
+				}
+
+				real_data_len = get_real_sensor_data_size(p_sens_inf);
+				if (real_data_len > sample->size)
+					continue;
+
+				p_cmd_resp = (struct cmd_resp *)malloc(sizeof(struct cmd_resp) + real_data_len);
+				if (p_cmd_resp == NULL)
+					continue;
+
 				p_cmd_resp->cmd_type = RESP_STREAMING;
 				p_cmd_resp->data_len = real_data_len;
 				p_cmd_resp->sensor_type = p_sens_inf->sensor_type;
@@ -859,9 +883,10 @@ static void generic_sensor_dispatch(int fd)
 				}
 
 				dispatch_streaming(p_cmd_resp);
+
+				free(p_cmd_resp);
 			}
 
-			free(p_cmd_resp);
 		}
 	}
 }
