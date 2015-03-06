@@ -40,10 +40,16 @@
 /* sensor name path */
 #define SENSOR_NAME_PATH		SENSOR_DIR_PATH "name"
 
+/* sensor name path */
+#define SENSOR_FLUSH_PATH		SENSOR_DIR_PATH "flush"
+
 /* sensor property */
 #define SENSOR_PROP_PATH		SENSOR_DIR_PATH "properties/"
 #define PROP_DESCP_PATH			SENSOR_PROP_PATH "property_sensor_description/value"
+
 #define PROP_INTERVAL			"property_report_interval"
+#define PROP_MIN_INTERVAL		"property_minimum_report_interval"
+#define PROP_DELAY			"property_report_interval_resolution"
 #define PROP_POWER_STATE		"property_power_state"
 #define PROP_REPORT_STATE		"property_reporting_state"
 #define PROP_SENSITIVITY_SUFFIX		"_chg_sensitivity_abs"
@@ -62,15 +68,15 @@
 #define MAX_PATH_LEN			256
 #define MAX_VALUE_LEN			64
 
-void dispatch_streaming(struct cmd_resp *p_cmd_resp);
-
 static int hwFdData = -1;
 static int hwFdEvent = -1;
+
+static int flush = 0;
 
 /* time different between host and firmware, unit is oms*/
 static int32_t time_diff_oms;
 
-int get_time_diff()
+static int get_time_diff()
 {
 	SMHI_MSG_HEADER req;
 	SMHI_GET_TIME_RESPONSE resp;
@@ -113,18 +119,18 @@ int get_time_diff()
 	return 0;
 }
 
-int get_serial_num(char *dir_name)
+static unsigned int get_serial_num(char *dir_name)
 {
 	int prefix_len = strlen(SENSOR_DIR_PREFIX);
 	int suffix_len = strlen(SENSOR_DIR_SUFFIX);
 	int dir_len = strlen(dir_name);
 	int serial_str_len = dir_len - prefix_len - suffix_len;
-	int serial_num;
+	unsigned int serial_num;
 	int i;
 	char serial_str[10];
 
 	if (serial_str_len <= 0 || serial_str_len >= 10)
-		return -1;
+		return 0;
 
 	for (i = 0; i < serial_str_len; i++)
 		serial_str[i] = dir_name[prefix_len + i];
@@ -136,7 +142,22 @@ int get_serial_num(char *dir_name)
 	return serial_num;
 }
 
-int read_sysfs_node(char *file_name, char *buf, int size)
+static sensor_info_t *get_sensor_info_by_serial_num(unsigned int serial_num)
+{
+	int i, j;
+
+	j = sizeof(g_sensor_info) / sizeof(sensor_info_t);
+	for (i = 0; i < j; i++) {
+		generic_sensor_info_t *g_tmp = (generic_sensor_info_t *)g_sensor_info[i].plat_data;
+
+		if (g_tmp && g_tmp->serial_num == serial_num)
+			return &g_sensor_info[i];
+	}
+
+	return NULL;
+}
+
+static int read_sysfs_node(char *file_name, char *buf, int size)
 {
 	int ret;
 	int fd = open(file_name, O_RDONLY);
@@ -148,18 +169,182 @@ int read_sysfs_node(char *file_name, char *buf, int size)
 	ret = read(fd, buf, size);
 	close(fd);
 
+	if (ret >= 0 && ret < size)
+		buf[ret] = '\0';
+
 	return ret;
 }
 
-int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
+static char *create_path(char *dest, const char *src1, const char *src2, unsigned int max_size)
 {
-	int serial_num = get_serial_num(dir_name);
+	unsigned int len1, len2;
+
+	if (dest == NULL || src1 == NULL || src2 == NULL)
+		return NULL;
+
+	len1 = strlen(src1);
+	len2 = strlen(src2);
+
+	if (len1 > max_size || len2 > max_size || (len1 + len2) >= max_size)
+		return NULL;
+
+	memset(dest, 0, max_size);
+	memcpy(dest, src1, len1);
+	strcat(dest, src2);
+
+	return dest;
+}
+
+static char *strcat_path(char *dest, const char *src1, const char *src2, unsigned int max_size)
+{
+	unsigned int len1, len2, len3;
+
+	if (dest == NULL || src1 == NULL)
+		return NULL;
+
+	len1 = strlen(dest);
+	len2 = strlen(src1);
+	if (src2)
+		len3 = strlen(src2);
+
+	if (len1 > max_size || len2 > max_size || (len1 + len2) >= max_size)
+		return NULL;
+
+	if (src2 && (len3 > max_size || (len1 + len2 + len3) >= max_size))
+		return NULL;
+
+	strcat(dest, src1);
+	strcat(dest, src2);
+
+	return dest;
+}
+
+static int set_sensor_property(unsigned int serial_num, const char *property_name, const char *value, int len)
+{
+	char path[MAX_PATH_LEN];
+	int fd;
+	int ret;
+
+	log_message(DEBUG, "[%s] enter\n", __func__);
+
+	snprintf(path, sizeof(path), SENSOR_PROP_PATH, serial_num);
+	strcat_path(path, property_name, "/value", MAX_PATH_LEN);
+
+	fd = open(path, O_RDWR);
+	if (fd < 0) {
+		log_message(CRITICAL, "error opening property entry %s\n", path);
+		return -1;
+	}
+
+	ret = write(fd, value, len);
+
+	close(fd);
+
+	if (ret < 0) {
+		log_message(CRITICAL, "write value %s into entry %s failed\n", value, path);
+		return -1;
+	} else {
+		log_message(DEBUG, "write value %s into entry %s success\n", value, path);
+		return 0;
+	}
+}
+
+static int get_sensor_property(unsigned int serial_num, const char *property_name, char *value, int len)
+{
+	char path[MAX_PATH_LEN];
+	int fd;
+	int ret;
+
+	log_message(DEBUG, "[%s] enter\n", __func__);
+
+	snprintf(path, sizeof(path), SENSOR_PROP_PATH, serial_num);
+	strcat_path(path, property_name, "/value", MAX_PATH_LEN);
+
+	fd = open(path, O_RDWR);
+	if (fd < 0) {
+		log_message(CRITICAL, "error opening property entry %s\n", path);
+		return -1;
+	}
+
+	ret = read(fd, value, len);
+
+	close(fd);
+
+	if (ret < 0) {
+		log_message(CRITICAL, "read entry %s value failed\n", path);
+		return -1;
+	} else {
+		log_message(DEBUG, "read entry %s value success\n", path);
+		return 0;
+	}
+}
+
+static int set_sensor_wake_mode(unsigned int serial_num, unsigned char wake)
+{
+	int report_state_val;
+	char report_state_str[MAX_VALUE_LEN];
+
+	log_message(DEBUG, "[%s] enter\n", __func__);
+
+	if(wake)
+		report_state_val =
+			USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_WAKE_ENUM;
+	else
+		report_state_val =
+			USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_ENUM;
+
+	snprintf(report_state_str, sizeof(report_state_str), "%d", report_state_val);
+
+	return set_sensor_property(serial_num, PROP_REPORT_STATE, report_state_str, strlen(report_state_str));
+}
+
+static int enable_sensor(unsigned int serial_num, int enabled)
+{
+	int power_state_val;
+	char power_state_str[MAX_VALUE_LEN];
+	int ret;
+
+	log_message(DEBUG, "[%s] enter\n", __func__);
+
+	if(enabled)
+		power_state_val =
+			USAGE_SENSOR_PROPERTY_POWER_STATE_D0_FULL_POWER_ENUM;
+	else
+		power_state_val =
+			USAGE_SENSOR_PROPERTY_POWER_STATE_D1_LOW_POWER_ENUM;
+
+	snprintf(power_state_str, sizeof(power_state_str), "%d", power_state_val);
+
+	return set_sensor_property(serial_num, PROP_POWER_STATE, power_state_str, strlen(power_state_str));
+}
+
+static unsigned int sensor_type_to_serial_num(ish_sensor_t sensor_type)
+{
+	int i, j;
+
+	j = sizeof(g_sensor_info) / sizeof(sensor_info_t);
+	for (i = 0; i < j; i++) {
+		if (g_sensor_info[i].sensor_type == sensor_type) {
+			generic_sensor_info_t *g_tmp = (generic_sensor_info_t *)g_sensor_info[i].plat_data;
+			if (g_tmp)
+				return g_tmp->serial_num;
+			else
+				return 0;
+		}
+	}
+
+	return 0;
+}
+
+static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
+{
+	unsigned int serial_num = get_serial_num(dir_name);
 	char path[MAX_PATH_LEN];
 	char buf[MAX_VALUE_LEN];
 	int ret;
 	int cur_sensor, sensor_num;
 
-	if (serial_num <= 0)
+	if (serial_num == 0)
 		return -1;
 
 	snprintf(path, sizeof(path), SENSOR_NAME_PATH, serial_num);
@@ -192,6 +377,11 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 			continue;
 		}
 
+		if (g_tmp->installed) {
+			log_message(DEBUG, "this sensor is already installed! continue! \n");
+			continue;
+		}
+
 		if(!strncmp(buf, g_tmp->friend_name, strlen(g_tmp->friend_name))) {
 			DIR *dp;
 
@@ -200,10 +390,11 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 
 			g_tmp->serial_num = serial_num;
 
-			memset (path, 0, sizeof(path));
+			memset(path, 0, sizeof(path));
 			snprintf(path, sizeof(path), SENSOR_DATA_FIELD_PATH, serial_num);
 
 			log_message(DEBUG, "open sensor data field %s\n", path);
+
 			if ((dp = opendir(path)) != NULL) {
 				struct dirent *dirp;
 				unsigned int data_field_num = 0;
@@ -223,12 +414,9 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 					if (!strncmp(dirp->d_name, ".", strlen(".")) || !strncmp(dirp->d_name, "..", strlen("..")))
 						continue;
 
-					strcpy(tmp_path, path);
-					strcat(tmp_path, dirp->d_name);
-					strcat(tmp_path, "/");
-
 					/* read usage_id */
-					strcat(tmp_path, DATA_FIELD_USAGE_ID_FILE);
+					create_path(tmp_path, path, dirp->d_name, MAX_PATH_LEN);
+					strcat_path(tmp_path, "/", DATA_FIELD_USAGE_ID_FILE, MAX_PATH_LEN);
 					log_message(DEBUG, "tmp_path %s\n", tmp_path);
 					memset (buf, 0, sizeof(buf));
 					ret = read_sysfs_node(tmp_path, buf, sizeof(buf));
@@ -262,8 +450,8 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 					}
 
 					/* read offset index */
-					tmp_path[strlen(tmp_path) - strlen(DATA_FIELD_USAGE_ID_FILE)] = '\0';
-					strcat(tmp_path, DATA_FIELD_INDEX_FILE);
+					create_path(tmp_path, path, dirp->d_name, MAX_PATH_LEN);
+					strcat_path(tmp_path, "/", DATA_FIELD_INDEX_FILE, MAX_PATH_LEN);
 					log_message(DEBUG, "tmp_path %s\n", tmp_path);
 					memset (buf, 0, sizeof(buf));
 					ret = read_sysfs_node(tmp_path, buf, sizeof(buf));
@@ -273,12 +461,12 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 					}
 
 					log_message(DEBUG, "path %s value %s\n", tmp_path, buf);
-					sscanf(buf, "%d", &value);
+					sscanf(buf, "%u", &value);
 					datafield->index = value;
 
 					/* read offset length */
-					tmp_path[strlen(tmp_path) - strlen(DATA_FIELD_INDEX_FILE)] = '\0';
-					strcat(tmp_path, DATA_FIELD_LENGTH_FILE);
+					create_path(tmp_path, path, dirp->d_name, MAX_PATH_LEN);
+					strcat_path(tmp_path, "/", DATA_FIELD_LENGTH_FILE, MAX_PATH_LEN);
 					log_message(DEBUG, "tmp_path %s\n", tmp_path);
 					memset (buf, 0, sizeof(buf));
 					ret = read_sysfs_node(tmp_path, buf, sizeof(buf));
@@ -288,7 +476,7 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 					}
 
 					log_message(DEBUG, "path %s value %s\n", tmp_path, buf);
-					sscanf(buf, "%d", &value);
+					sscanf(buf, "%u", &value);
 					datafield->length = value;
 				}
 
@@ -315,10 +503,33 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 					}
 				}
 
+				closedir(dp);
+
 			} else {
 				log_message(CRITICAL, "open path %s failed\n", path);
 				return -1;
 			}
+
+			/* TODO: add coding to check sensor's infor to determine if it's wake sensor or non-wake sensor */
+			g_sensor_info[cur_sensor].is_wake_sensor = 0;
+
+			memset (buf, 0, sizeof(buf));
+			if (!get_sensor_property(serial_num, PROP_MIN_INTERVAL, buf, sizeof(buf))) {
+				unsigned int value;
+
+				sscanf(buf, "%u", &value);
+
+				if (value)
+					g_sensor_info[cur_sensor].min_delay = value * MS_TO_US;
+				else
+					g_sensor_info[cur_sensor].min_delay = DEFAULT_MIN_DELAY;
+			}
+
+			g_sensor_info[cur_sensor].max_delay = DEFAULT_MAX_DELAY;
+			g_sensor_info[cur_sensor].fifo_max_event_count = DEFAULT_FIFO_MAX;
+			g_sensor_info[cur_sensor].fifo_reserved_event_count = DEFAULT_FIFO_RESERVED;
+
+			g_tmp->installed = 1;
 
 			break;
 		}
@@ -332,6 +543,7 @@ int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 }
 
 #define WAITING_SENSOR_UP_TIME		50
+#define MAX_SENSOR_DIR_NUM		7
 int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 {
 	FILE *file;
@@ -358,17 +570,18 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 			int num_tmp = 0;
 
 			log_message(DEBUG, "open %s success\n", SENSOR_COL_PATH);
+
 			while ((dirp = readdir(dp)) != NULL)
 				num_tmp++;
 
+			closedir(dp);
+
 			log_message(DEBUG, "find %d dirs\n", num_tmp);
 
-			if (num_tmp != file_num)
+			if ((num_tmp != file_num) || (num_tmp <= MAX_SENSOR_DIR_NUM))
 				file_num = num_tmp;
 			else
 				break;
-
-			closedir(dp);
 		}
 
 		sleep(1);
@@ -380,6 +593,9 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 		struct dirent *dirp;
 		sensor_state_t *tmp_list = p_sensor_list;
 
+		if (dp == NULL)
+			return -1;
+
 		while ((dirp = readdir(dp)) != NULL) {
 			if (strncmp(dirp->d_name, SENSOR_DIR_PREFIX, strlen(SENSOR_DIR_PREFIX)) == 0) {
 				log_message(DEBUG, "process index %d dir %s\n", *index, dirp->d_name);
@@ -390,6 +606,8 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 				}
 			}
 		}
+
+		closedir(dp);
 	}
 
 	hwFdData = open(SENSOR_DATA_PATH, O_RDONLY);
@@ -420,107 +638,40 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 	return 0;
 }
 
-static int set_sensor_property(unsigned int serial_num, const char *property_name, const char *value, int len)
-{
-	char path[MAX_PATH_LEN];
-	int fd;
-	int ret;
-
-	log_message(DEBUG, "[%s] enter\n", __func__);
-
-	snprintf(path, sizeof(path), SENSOR_PROP_PATH, serial_num);
-	strcat(path, property_name);
-	strcat(path, "/value");
-
-	fd = open(path, O_RDWR);
-	if (fd < 0) {
-		log_message(CRITICAL, "error opening property entry %s\n", path);
-		return -1;
-	}
-
-	log_message(DEBUG, "write value %s into entry %s\n", value, path);
-
-	ret = write(fd, value, len);
-
-	close(fd);
-
-	if (ret < 0)
-		return -1;
-	else
-		return 0;
-}
-
-static int enable_sensor(unsigned int serial_num, int enabled)
-{
-	int power_state_val;
-	int report_state_val;
-	char power_state_str[MAX_VALUE_LEN];
-	char report_state_str[MAX_VALUE_LEN];
-	int ret;
-
-	log_message(DEBUG, "[%s] enter\n", __func__);
-
-	if(enabled) {
-		power_state_val =
-			USAGE_SENSOR_PROPERTY_POWER_STATE_D0_FULL_POWER_ENUM;
-		report_state_val =
-			USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_ENUM;
-	} else {
-		power_state_val =
-			USAGE_SENSOR_PROPERTY_POWER_STATE_D1_LOW_POWER_ENUM;
-		report_state_val =
-			USAGE_SENSOR_PROPERTY_REPORTING_STATE_NO_EVENTS_ENUM;
-	}
-
-	snprintf(power_state_str, sizeof(power_state_str), "%d", power_state_val);
-	snprintf(report_state_str, sizeof(report_state_str), "%d", report_state_val);
-
-	ret = set_sensor_property(serial_num, PROP_POWER_STATE, power_state_str, strlen(power_state_str));
-	if (ret)
-		return ret;
-
-	return set_sensor_property(serial_num, PROP_REPORT_STATE, report_state_str, strlen(report_state_str));
-}
-
-static unsigned int sensor_type_to_serial_num(ish_sensor_t sensor_type)
-{
-	int i, j;
-
-	j = sizeof(g_sensor_info) / sizeof(sensor_info_t);
-	for (i = 0; i < j; i++) {
-		if (g_sensor_info[i].sensor_type == sensor_type) {
-			generic_sensor_info_t *g_tmp = (generic_sensor_info_t *)g_sensor_info[i].plat_data;
-			if (g_tmp)
-				return g_tmp->serial_num;
-			else
-				return 0;
-		}
-	}
-
-	return 0;
-}
-
 /* 0 on success; -1 on fail */
 int generic_sensor_send_cmd(struct cmd_send *cmd)
 {
 	unsigned int serial_num = sensor_type_to_serial_num(cmd->sensor_type);
+	sensor_info_t *sensor_info;
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (serial_num == 0)
 		return -1;
 
+	sensor_info = get_sensor_info_by_serial_num(serial_num);
+	if (sensor_info == NULL)
+		return -1;
+
 	switch(cmd->cmd_id) {
 		case CMD_START_STREAMING:
 		{
 			char report_interval_str[MAX_VALUE_LEN];
+			char report_delay_str[MAX_VALUE_LEN];
 
 			if (enable_sensor(serial_num, 1) < 0)
 				return -1;
 
-			snprintf(report_interval_str, sizeof(report_interval_str), "%d", (1000 / cmd->start_stream.data_rate));
+			if (set_sensor_wake_mode(serial_num, sensor_info->is_wake_sensor) < 0)
+				return -1;
 
-			set_sensor_property(serial_num, PROP_INTERVAL, report_interval_str, strlen(report_interval_str));
+			if (cmd->start_stream.data_rate) {
+				snprintf(report_interval_str, sizeof(report_interval_str), "%d", (1000 / cmd->start_stream.data_rate));
+				set_sensor_property(serial_num, PROP_INTERVAL, report_interval_str, strlen(report_interval_str));
+			}
+
+			snprintf(report_delay_str, sizeof(report_delay_str), "%d", cmd->start_stream.buffer_delay);
+			set_sensor_property(serial_num, PROP_DELAY, report_delay_str, strlen(report_delay_str));
 
 			break;
 		}
@@ -529,6 +680,24 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 		{
 			if (enable_sensor(serial_num, 0) < 0)
 				return -1;
+
+			break;
+		}
+
+		case CMD_FLUSH_STREAMING:
+		{
+			char path[MAX_PATH_LEN];
+			char buf[MAX_VALUE_LEN];
+			int ret;
+
+			snprintf(path, sizeof(path), SENSOR_FLUSH_PATH, serial_num);
+			log_message(DEBUG, "read path %s \n", path);
+			ret = read_sysfs_node(path, buf, sizeof(buf));
+			if (ret < 0) {
+				log_message(CRITICAL, "read path %s failed\n", path);
+				//return -1;
+				flush = 1;
+			}
 
 			break;
 		}
@@ -560,6 +729,8 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 						}
 					}
 
+					closedir(dp);
+
 					log_message(CRITICAL, "Sensor %d not support sensitivity property\n", cmd->sensor_type);
 					return -1;
 				} else {
@@ -588,20 +759,9 @@ struct senscol_sample {
 	char data[0];
 } __attribute__((packed));
 
-static sensor_info_t *get_sensor_info_by_serial_num(unsigned int serial_num)
-{
-	int i, j;
+#define PSEUSDO_EVENT_BIT 	(1 << 31)
 
-	j = sizeof(g_sensor_info) / sizeof(sensor_info_t);
-	for (i = 0; i < j; i++) {
-		generic_sensor_info_t *g_tmp = (generic_sensor_info_t *)g_sensor_info[i].plat_data;
-
-		if (g_tmp && g_tmp->serial_num == serial_num)
-			return &g_sensor_info[i];
-	}
-
-	return NULL;
-}
+#define FLUSH_CMPL_BIT		(1 << 0)
 
 static unsigned int get_real_sensor_data_size(sensor_info_t *p_sens_inf)
 {
@@ -628,6 +788,12 @@ static void generic_sensor_dispatch(int fd)
 
 	if (fd != hwFdEvent)
 		return;
+
+	if (flush) {
+		log_message(CRITICAL, "just a workaround before fw batch mode ready, flush manually\n");
+		dispatch_flush();
+		flush = 0;
+	}
 
 	while ((read_count = read(hwFdData, buf, sizeof(buf))) > 0) {
 		int cur_point = 0;
@@ -661,29 +827,39 @@ static void generic_sensor_dispatch(int fd)
 			if (p_cmd_resp == NULL)
 				continue;
 
-			p_cmd_resp->cmd_type = RESP_STREAMING;
-			p_cmd_resp->data_len = real_data_len;
-			p_cmd_resp->sensor_type = p_sens_inf->sensor_type;
+			if (sample->id & PSEUSDO_EVENT_BIT) {
+				int flag = *((int *)sample->data);
 
-			/* copy sensor data */
-			for (i = 0; i < MAX_DATA_FIELD; i++) {
-				if (p_g_sens_inf->data_field[i].exposed == 0)
-					continue;
+				if (flag & FLUSH_CMPL_BIT)
+					dispatch_flush();
 
-				offset = p_g_sens_inf->data_field[i].offset;
-				length = p_g_sens_inf->data_field[i].length;
-				outdata_offset = p_g_sens_inf->data_field[i].exposed_offset;
+				log_message(CRITICAL, "flushing...\n");
 
-				memcpy((char *)p_cmd_resp->buf + outdata_offset, tmp_buf + offset, length);
+			} else {
+				p_cmd_resp->cmd_type = RESP_STREAMING;
+				p_cmd_resp->data_len = real_data_len;
+				p_cmd_resp->sensor_type = p_sens_inf->sensor_type;
 
-				if (p_g_sens_inf->data_field[i].usage_id == USAGE_SENSOR_DATA_CUSTOM_VALUE_28) {
-					int32_t *ts = (int32_t *)((char *)p_cmd_resp->buf + outdata_offset);
-					log_message(DEBUG, "ts change from %d to %d\n", *ts, (*ts + time_diff_oms));
-					*ts = *ts + time_diff_oms;
+				/* copy sensor data */
+				for (i = 0; i < MAX_DATA_FIELD; i++) {
+					if (p_g_sens_inf->data_field[i].exposed == 0)
+						continue;
+
+					offset = p_g_sens_inf->data_field[i].offset;
+					length = p_g_sens_inf->data_field[i].length;
+					outdata_offset = p_g_sens_inf->data_field[i].exposed_offset;
+
+					memcpy((char *)p_cmd_resp->buf + outdata_offset, tmp_buf + offset, length);
+
+					if (p_g_sens_inf->data_field[i].usage_id == USAGE_SENSOR_DATA_CUSTOM_VALUE_28) {
+						int32_t *ts = (int32_t *)((char *)p_cmd_resp->buf + outdata_offset);
+						log_message(DEBUG, "ts change from %d to %d\n", *ts, (*ts + time_diff_oms));
+						*ts = *ts + time_diff_oms;
+					}
 				}
-			}
 
-			dispatch_streaming(p_cmd_resp);
+				dispatch_streaming(p_cmd_resp);
+			}
 
 			free(p_cmd_resp);
 		}

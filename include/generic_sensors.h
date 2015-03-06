@@ -5,9 +5,11 @@
 #include "message.h"
 
 #define USAGE_SENSOR_PROPERTY_POWER_STATE_D0_FULL_POWER_ENUM		0x02
-#define USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_ENUM		0x02
 #define USAGE_SENSOR_PROPERTY_POWER_STATE_D1_LOW_POWER_ENUM		0x03
+
 #define USAGE_SENSOR_PROPERTY_REPORTING_STATE_NO_EVENTS_ENUM		0x01
+#define USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_ENUM		0x02
+#define USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_WAKE_ENUM	0x05
 
 #define USAGE_SENSOR_DATA_MOTION_STATE					0x200451
 #define USAGE_SENSOR_DATA_MOTION_ACCELERATION_X_AXIS			0x200453
@@ -65,9 +67,10 @@ typedef struct {
 #define FRI_NAME_MAX_LEN	50
 #define MAX_DATA_FIELD		15
 typedef struct {
-	char friend_name[FRI_NAME_MAX_LEN + 1];
-	unsigned int serial_num;
-	datafield_map_t data_field[MAX_DATA_FIELD];
+	char friend_name[FRI_NAME_MAX_LEN + 1];		// Sensor's name or usage id
+	unsigned int serial_num;			// Sensor's serial number
+	datafield_map_t data_field[MAX_DATA_FIELD];	// Sensor's data field information
+	unsigned char installed;			// Flag if sensor is installed to sensorhubd
 } generic_sensor_info_t;
 
 int init_generic_sensors(void *p_sensor_list, unsigned int *index);

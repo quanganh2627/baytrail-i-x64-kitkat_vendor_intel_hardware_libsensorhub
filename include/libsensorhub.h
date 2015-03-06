@@ -73,13 +73,22 @@ typedef enum {
 #define SNR_NAME_MAX_LEN	5
 #define VEND_NAME_MAX_LEN	20
 #define MAX_AXIS		6
+#define MS_TO_US		1000
+#define DEFAULT_MIN_DELAY	10000	// min dalay default is 10ms, 100HZ, unit is microsecond
+#define DEFAULT_MAX_DELAY	(0x7fffffff)	// max delay default is max
+#define DEFAULT_FIFO_MAX	0	// default fifo set to 0, before batch mode enable in fw
+#define DEFAULT_FIFO_RESERVED	0	// default to 0
 typedef struct {
 	char name[SNR_NAME_MAX_LEN + 1];	// sensor name
 	char vendor[VEND_NAME_MAX_LEN + 1];	// sensor vendor's name
 	ish_sensor_t sensor_type;		// sensor type, ACCEL, COMPSS, GYRO ...
 	ish_usecase_t use_case;
+	unsigned char is_wake_sensor;		// sensor wake mode: 0- non-wake sensor; 1 - wake sensor
 	unsigned int version;			// sensor version
 	unsigned int min_delay;			// sensor's minimum delay
+	unsigned int max_delay;			// sensor's maximum delay
+	unsigned int fifo_max_event_count;	// sensor's fifo count for batch mode
+	unsigned int fifo_reserved_event_count;	// sensos's fifo reserved for batch mode
 	unsigned int axis_num;			// sensor's axises
 	float axis_scale[MAX_AXIS];		// sensor's individual axis scale
 	float max_range;			// sensor's maximum value range
@@ -193,6 +202,7 @@ error_t ish_start_streaming(handle_t handle, int data_rate, int buffer_delay);
 error_t ish_start_streaming_with_flag(handle_t handle, int data_rate, int buffer_delay, streaming_flag flag);
 
 #define MAX_UNIT_SIZE 128
+#define FLUSH_CMPL_FLAG 0xFFFFFFFF
 error_t ish_flush_streaming(handle_t handle, unsigned int data_unit_size);
 
 error_t ish_stop_streaming(handle_t handle);
@@ -310,6 +320,8 @@ struct rotation_vector_data {
         short y;
         short z;
         short w;
+	unsigned char mag_accuracy;
+	unsigned char mag_err_rad;
 } __attribute__ ((packed));
 
 struct game_rotation_vector_data {
@@ -383,8 +395,8 @@ struct orientation_data {
 	int tiltx;
 	int tilty;
 	int tiltz;
-	char mag_accuracy;
-	char mag_err_rad;
+	unsigned char mag_accuracy;
+	unsigned char mag_err_rad;
 } __attribute__ ((packed));
 
 struct device_orientation_data {
