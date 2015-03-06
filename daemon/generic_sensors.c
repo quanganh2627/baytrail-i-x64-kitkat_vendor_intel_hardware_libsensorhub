@@ -279,43 +279,46 @@ static int get_sensor_property(unsigned int serial_num, const char *property_nam
 	}
 }
 
-static int set_sensor_wake_mode(unsigned int serial_num, unsigned char wake)
-{
-	int report_state_val;
-	char report_state_str[MAX_VALUE_LEN];
-
-	log_message(DEBUG, "[%s] enter\n", __func__);
-
-	if(wake)
-		report_state_val =
-			USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_WAKE_ENUM;
-	else
-		report_state_val =
-			USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_ENUM;
-
-	snprintf(report_state_str, sizeof(report_state_str), "%d", report_state_val);
-
-	return set_sensor_property(serial_num, PROP_REPORT_STATE, report_state_str, strlen(report_state_str));
-}
-
-static int enable_sensor(unsigned int serial_num, int enabled)
+static int enable_sensor(unsigned int serial_num, int enabled, unsigned char wake)
 {
 	int power_state_val;
+	int report_state_val;
 	char power_state_str[MAX_VALUE_LEN];
+	char report_state_str[MAX_VALUE_LEN];
 	int ret;
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
 
-	if(enabled)
+	if(enabled) {
 		power_state_val =
 			USAGE_SENSOR_PROPERTY_POWER_STATE_D0_FULL_POWER_ENUM;
-	else
+
+		if(wake)
+			report_state_val =
+				USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_WAKE_ENUM;
+		else
+			report_state_val =
+				USAGE_SENSOR_PROPERTY_REPORTING_STATE_ALL_EVENTS_ENUM;
+	} else {
 		power_state_val =
 			USAGE_SENSOR_PROPERTY_POWER_STATE_D1_LOW_POWER_ENUM;
 
+		report_state_val =
+			USAGE_SENSOR_PROPERTY_REPORTING_STATE_NO_EVENTS_ENUM;
+	}
+
+	snprintf(report_state_str, sizeof(report_state_str), "%d", report_state_val);
 	snprintf(power_state_str, sizeof(power_state_str), "%d", power_state_val);
 
-	return set_sensor_property(serial_num, PROP_POWER_STATE, power_state_str, strlen(power_state_str));
+	if (enabled) {
+		ret =set_sensor_property(serial_num, PROP_POWER_STATE, power_state_str, strlen(power_state_str));
+		ret |= set_sensor_property(serial_num, PROP_REPORT_STATE, report_state_str, strlen(report_state_str));
+	} else {
+		ret = set_sensor_property(serial_num, PROP_REPORT_STATE, report_state_str, strlen(report_state_str));
+		ret |=set_sensor_property(serial_num, PROP_POWER_STATE, power_state_str, strlen(power_state_str));
+	}
+
+	return ret;
 }
 
 static unsigned int sensor_type_to_serial_num(ish_sensor_t sensor_type)
@@ -659,10 +662,7 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 			char report_interval_str[MAX_VALUE_LEN];
 			char report_delay_str[MAX_VALUE_LEN];
 
-			if (enable_sensor(serial_num, 1) < 0)
-				return -1;
-
-			if (set_sensor_wake_mode(serial_num, sensor_info->is_wake_sensor) < 0)
+			if (enable_sensor(serial_num, 1, sensor_info->is_wake_sensor) < 0)
 				return -1;
 
 			if (cmd->start_stream.data_rate) {
@@ -678,7 +678,7 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 
 		case CMD_STOP_STREAMING:
 		{
-			if (enable_sensor(serial_num, 0) < 0)
+			if (enable_sensor(serial_num, 0, sensor_info->is_wake_sensor) < 0)
 				return -1;
 
 			break;
