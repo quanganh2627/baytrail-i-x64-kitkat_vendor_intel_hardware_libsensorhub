@@ -662,6 +662,41 @@ generic_sensor_info_t g_info[] = {
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
+		.data_field[3] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 9,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.exposed = 1,
+			.exposed_offset = 13,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.exposed = 1,
+			.exposed_offset = 17,
+		},
+		.data_field[6] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.exposed = 1,
+			.exposed_offset = 21,
+		},
+		.data_field[7] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_7,
+			.exposed = 1,
+			.exposed_offset = 25,
+		},
+		.data_field[8] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_8,
+			.exposed = 1,
+			.exposed_offset = 29,
+		},
+		.data_field[9] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_9,
+			.exposed = 1,
+			.exposed_offset = 33,
+		},
 	},
 	/* index 28 - Mag Heading */
 	[28] = {

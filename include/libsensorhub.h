@@ -272,15 +272,17 @@ struct gesture_hmm_data {
 	short sample[0];
 } __attribute__ ((packed));
 
-struct pdr_sample {
-	int x;		/* position x, unit is cm */
-	int y;		/* position y, unit is cm */
-} __attribute__ ((packed));
-
 struct pdr_data {
 	int32_t ts;
-	short size;
-	struct pdr_sample sample[0];
+	int x;
+	int y;
+	char floor;
+	int heading;
+	unsigned int step;
+	unsigned int distance;
+	unsigned int speed;
+	unsigned int pos_error;
+	unsigned int heading_conf;
 } __attribute__ ((packed));
 
 struct gesture_eartouch_data {
