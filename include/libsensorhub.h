@@ -76,7 +76,7 @@ typedef enum {
 #define MS_TO_US		1000
 #define DEFAULT_MIN_DELAY	10000	// min dalay default is 10ms, 100HZ, unit is microsecond
 #define DEFAULT_MAX_DELAY	(0x7fffffff)	// max delay default is max
-#define DEFAULT_FIFO_MAX	0	// default fifo set to 0, before batch mode enable in fw
+#define DEFAULT_FIFO_MAX	200	// default fifo set to 0, before batch mode enable in fw
 #define DEFAULT_FIFO_RESERVED	0	// default to 0
 typedef struct {
 	char name[SNR_NAME_MAX_LEN + 1];	// sensor name

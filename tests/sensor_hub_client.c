@@ -256,6 +256,28 @@ static void dump_lift_data(int fd)
 	}
 }
 
+static void dump_orientation_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct orientation_data *p_orientation_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_orientation_data = (struct orientation_data *)buf;
+		while (size > 0) {
+		printf("x, y, z is: %d, %d, %d, size is %d \n",
+					p_orientation_data->tiltx,
+					p_orientation_data->tilty,
+					p_orientation_data->tiltz, size);
+			size = size - sizeof(struct orientation_data);
+			p = p + sizeof(struct orientation_data);
+			p_orientation_data = (struct orientation_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -411,6 +433,8 @@ int main(int argc, char **argv)
 		dump_sm_data(fd);
 	else if (strncmp(sensor_name, "LIFT", SNR_NAME_MAX_LEN) == 0)
 		dump_lift_data(fd);
+	else if (strncmp(sensor_name, "ORIEN", SNR_NAME_MAX_LEN) == 0)
+		dump_orientation_data(fd);
 	else
 		printf("current not supported!\n");
 

@@ -71,12 +71,10 @@
 static int hwFdData = -1;
 static int hwFdEvent = -1;
 
-static int manual_flush = 0;
-
 /* time different between host and firmware, unit is oms*/
 static int32_t time_diff_oms = 0;
 static int64_t last_time_synced = 0;
-#define MIN_SYNC_INTERVAL	10	// min sync interval
+#define MIN_SYNC_INTERVAL	8	// min sync interval
 
 static int get_time_diff()
 {
@@ -91,7 +89,7 @@ static int get_time_diff()
 		last_time_synced = time(NULL);
 
 	if ((time_diff_oms != 0) && (time(NULL) < (last_time_synced + MIN_SYNC_INTERVAL)))
-			return 0;
+		return 0;
 
 	if ((heci_fd = heci_open()) == -1) {
 		time_diff_oms = 0;
@@ -650,9 +648,6 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 		system("chmod 666 /data/sensorsUp");
 	}
 
-	if (get_time_diff())
-		log_message(CRITICAL, "get_time_diff failed \n");
-
 	log_message(DEBUG, "[%s] exit\n", __func__);
 
 	return ERROR_NONE;
@@ -703,9 +698,6 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 
 		case CMD_FLUSH_STREAMING:
 		{
-			manual_flush = 1;
-
-			/* disable ishfw flush, because ishfw not ready yet!
 			char path[MAX_PATH_LEN];
 			char buf[MAX_VALUE_LEN];
 			int ret;
@@ -715,9 +707,8 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 			ret = read_sysfs_node(path, buf, sizeof(buf));
 			if (ret < 0) {
 				log_message(CRITICAL, "read path %s failed\n", path);
-				return -1;
+				return ERROR_NOT_AVAILABLE;
 			}
-			*/
 
 			break;
 		}
@@ -816,11 +807,6 @@ static void generic_sensor_dispatch(int fd)
 
 	if (get_time_diff())
 		log_message(CRITICAL, "get_time_diff failed \n");
-
-	if (manual_flush) {
-		dispatch_flush();
-		manual_flush = 0;
-	}
 
 	while ((read_count = read(hwFdData, buf, sizeof(buf))) > 0) {
 		int cur_point = 0;
