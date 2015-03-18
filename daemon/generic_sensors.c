@@ -84,6 +84,7 @@ static int get_time_diff()
 	SMHI_GET_TIME_RESPONSE resp;
 	struct timespec t;
 	uint64_t cur_time;
+	int32_t temp;
 	int heci_fd = -1;
 
 	if (last_time_synced == 0)
@@ -98,9 +99,9 @@ static int get_time_diff()
 		return ERROR_NOT_AVAILABLE;
 	}
 
-	/* get current host time, unit is ns, change to ms */
-	clock_gettime(CLOCK_MONOTONIC, &t);
-	cur_time = (t.tv_sec * 1000) + (t.tv_nsec / 1000000);
+	/* get current host time, unit is ns, change to oms */
+	clock_gettime(CLOCK_BOOTTIME, &t);
+	cur_time = (t.tv_sec * 8000) + (t.tv_nsec / 125000);
 
 	memset(req.reserved, 0, sizeof(req.reserved));
 	req.status = 0;
@@ -121,7 +122,10 @@ static int get_time_diff()
 
 	heci_close(heci_fd);
 
-	time_diff_oms = (int32_t)((cur_time - resp.time_ms) << 3);
+	temp = (int32_t)(cur_time - (resp.time_ms << 3));
+
+	if ((time_diff_oms == 0) || (temp < time_diff_oms))
+		time_diff_oms = temp;
 
 	last_time_synced = time(NULL);
 
@@ -901,6 +905,9 @@ int add_generic_sensor_fds(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_n
 	int tmpRead = 0;
 	char tmpBuf[1024];
 	int new_max_fd = maxfd;
+
+	if (hwFdEvent < 0)
+		return maxfd;
 
 	FD_SET(hwFdEvent, (fd_set*)read_fds);
 
