@@ -796,8 +796,13 @@ static void reset_sensorhub()
 	for (j = 0; j < i; j++) {
 		if (ish_platf[j].init) {
 			ish_platf[j].index_start = current_sensor_index;
-			ish_platf[j].init((void *)sensor_list, &current_sensor_index);
-			ish_platf[j].index_end = current_sensor_index - 1;
+
+			if (ish_platf[j].init((void *)sensor_list, &current_sensor_index)) {
+				ish_platf[j].index_start = MAX_SENSOR_INDEX;
+				ish_platf[j].index_end = MAX_SENSOR_INDEX;
+			} else {
+				ish_platf[j].index_end = current_sensor_index - 1;
+			}
 		}
 	}
 
@@ -1095,8 +1100,7 @@ static void start_sensorhubd()
 	fixed_maxfd = add_notify_fd(&listen_fds, notifyfds);
 
 	//pthread_create(&t, NULL, screen_state_thread, NULL);
-
-	log_message(DEBUG,"after sleep thread launch\n");
+	//log_message(DEBUG,"after sleep thread launch\n");
 
 	while (1) {
 		int hw_fds[255], hw_fds_num;
@@ -1107,6 +1111,8 @@ static void start_sensorhubd()
 		maxfd = fixed_maxfd;
 		hw_fds_num = 0;
 		maxfd = add_platform_fds(maxfd, &read_fds, hw_fds, &hw_fds_num);
+		if (maxfd <= 0)
+			continue;
 
 		if (select(maxfd + 1, &read_fds, NULL, NULL, NULL) == -1) {
 			if (errno == EINTR)

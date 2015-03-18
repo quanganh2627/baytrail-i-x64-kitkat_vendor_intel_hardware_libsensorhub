@@ -35,6 +35,9 @@ void log_message(const message_level level, const char *char_ptr, ...)
 	char buffer[MAX_LOG_SIZE];
 	va_list list_ptr;
 
+	if (level > current_level)
+		return;
+
 	va_start(list_ptr, char_ptr);
 	vsnprintf(buffer, MAX_LOG_SIZE, char_ptr, list_ptr);
 	va_end(list_ptr);
@@ -45,9 +48,6 @@ void log_message(const message_level level, const char *char_ptr, ...)
 		ALOGW("sensorhub: %s", buffer);
 	else
 		ALOGE("sensorhub: %s", buffer);
-
-	if (level > current_level)
-		return;
 
 	FILE *logf = fopen(log_file, "a");
 	if (logf) {
