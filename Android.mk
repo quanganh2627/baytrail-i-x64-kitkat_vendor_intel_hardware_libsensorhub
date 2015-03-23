@@ -46,4 +46,16 @@ LOCAL_SRC_FILES := tests/sensor_hub_client.c
 LOCAL_SHARED_LIBRARIES := libsensorhub liblog
 include $(BUILD_EXECUTABLE)
 
+#
+# androidcalibrationtool - calibration tool for AGM
+#
+include $(CLEAR_VARS)
+LOCAL_MODULE := AndroidCalibrationTool
+LOCAL_MODULE_OWNER := intel
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLES
+LOCAL_MODULE_PATH := $(TARGET_OUT_EXECUTABLES)
+LOCAL_SRC_FILES := calibrationtool/$(LOCAL_MODULE)
+include $(BUILD_PREBUILT)
+
 endif
