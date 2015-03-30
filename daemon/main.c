@@ -339,7 +339,7 @@ static int send_set_property(sensor_state_t *p_sensor_state, session_state_t *p_
 	struct cmd_send cmd;
 	int ret;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
@@ -374,7 +374,7 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 	cmd_ack_event *cmd_ack;
 	ish_usecase_t usecase = (ish_usecase_t)*value;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
@@ -408,7 +408,7 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 		cmd_ack->ret = SUCCESS;
 
 		if (send(p_session_state->ctlfd, cmd_ack, sizeof(cmd_ack_event) + cmd_ack->buf_len, 0) < 0)
-			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s\n", __FUNCTION__, __LINE__, strerror(errno));
 
 		free(cmd_ack);
 
@@ -420,7 +420,7 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 		cmd_ack.ret = ERR_NO_MEMORY;
 
 		if (send(p_session_state->ctlfd, &cmd_ack, sizeof(cmd_ack), 0) < 0)
-			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s\n", __FUNCTION__, __LINE__, strerror(errno));
 
 		return ERR_NO_MEMORY;
 	}
@@ -429,7 +429,7 @@ static int process_bist_get_property(sensor_state_t *p_sensor_state, session_sta
 static int send_get_property(sensor_state_t *p_sensor_state, session_state_t *p_session_state,
 								int len, unsigned char *value)
 {
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
@@ -441,7 +441,7 @@ static int send_get_property(sensor_state_t *p_sensor_state, session_state_t *p_
 		return ERROR_WRONG_PARAMETER;
 	}
 
-	if (value == NULL) {
+	if (value == NULL || len == 0) {
 		log_message(CRITICAL, "%s: value buf is NULL\n", __func__);
 		return ERROR_WRONG_PARAMETER;
 	}
@@ -461,7 +461,7 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 	unsigned short bit_cfg = 0;
 	struct cmd_send cmd;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "p_sensor_state is NULL \n");
@@ -476,9 +476,6 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 
 	buffer_delay_arbitered = buffer_delay_arbiter(p_sensor_state, buffer_delay,
 						p_session_state, 1);
-
-	log_message(CRITICAL, "requested data rate is %d, arbitered is %d \n",
-						data_rate, data_rate_arbitered);
 
 	log_message(DEBUG, "CMD_START_STREAMING, data_rate_arbitered "
 				"is %d, buffer_delay_arbitered is %d \n",
@@ -524,7 +521,7 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 	unsigned short bit_cfg_arbitered;
 	struct cmd_send cmd;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "%s: p_sensor_state is NULL \n", __func__);
@@ -696,7 +693,7 @@ static void handle_message(int fd, char *message)
 			hello_with_sensor_type_ack.session_id = 0;
 
 			if (send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0) < 0)
-				log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+				log_message(CRITICAL, "%s line: %d: send message to client error: %s\n", __FUNCTION__, __LINE__, strerror(errno));
 
 			log_message(CRITICAL, "sensor type %s not supported \n", p_hello_with_sensor_type->name);
 			return;
@@ -709,7 +706,7 @@ static void handle_message(int fd, char *message)
 					EVENT_HELLO_WITH_SENSOR_TYPE_ACK;
 		hello_with_sensor_type_ack.session_id = session_id;
 		if (send(fd, &hello_with_sensor_type_ack, sizeof(hello_with_sensor_type_ack), 0) < 0)
-			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s\n", __FUNCTION__, __LINE__, strerror(errno));
 
 		p_session_state = (session_state_t*) malloc(sizeof(session_state_t));
 		if (p_session_state == NULL) {
@@ -747,7 +744,7 @@ static void handle_message(int fd, char *message)
 		hello_with_session_id_ack.ret = SUCCESS;
 
 		if (send(fd, &hello_with_session_id_ack, sizeof(hello_with_session_id_ack), 0) < 0)
-			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s\n", __FUNCTION__, __LINE__, strerror(errno));
 
 	} else if (event_type == EVENT_CMD) {
 		ret_t ret;
@@ -765,7 +762,7 @@ static void handle_message(int fd, char *message)
 		cmd_ack.ret = ret;
 
 		if (send(fd, &cmd_ack, sizeof(cmd_ack), 0) < 0)
-			log_message(CRITICAL, "%s line: %d: send message to client error: %s", __FUNCTION__, __LINE__, strerror(errno));
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s\n", __FUNCTION__, __LINE__, strerror(errno));
 	} else {
 		/* TODO: unknown message and drop it */
 	}
@@ -785,7 +782,7 @@ static void reset_sensorhub()
 {
 	int i, j;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	if (sockfd != -1) {
 		close(sockfd);
@@ -839,20 +836,20 @@ static void send_data_to_clients(sensor_state_t *p_sensor_state, void *data,
 
 		if (p_session_state->handle == NULL) {
 			if (send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
-				log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+				log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s\n",
 							__func__, __LINE__, strerror(errno), p_sensor_state->sensor_info->name);
 				return;
 			}
 		} else if (ctx_dispatch_data(p_session_state->handle, data, size, &out_data, &out_size) == 1) {
 			if (send(p_session_state->datafd, out_data, out_size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
-				log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+				log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s\n",
 							__func__, __LINE__, strerror(errno), p_sensor_state->sensor_info->name);
 				return;
 			}
 		}
 #else
 		if (send(p_session_state->datafd, data, size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
-			log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+			log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s\n",
 						__func__, __LINE__, strerror(errno), p_sensor_state->sensor_info->name);
 			return;
 		}
@@ -864,8 +861,6 @@ void dispatch_streaming(struct cmd_resp *p_cmd_resp)
 {
 	ish_sensor_t sensor_type = p_cmd_resp->sensor_type;
 	sensor_state_t *p_sensor_state = get_sensor_state_with_type(sensor_type);
-
-	log_message(DEBUG, "[%s] enter", __func__);
 
 	if (p_sensor_state == NULL) {
 		log_message(CRITICAL, "p_sensor_state is NULL with type %d \n", sensor_type);
@@ -886,11 +881,10 @@ void dispatch_flush()
                         while (p_session_state->flush_count > 0 && (p_session_state->flush_complete_event_size <= MAX_UNIT_SIZE)) {
 
                                 p_session_state->flush_count--;
-				log_message(DEBUG, "dispatch flush %s\n", sensor_list[i].sensor_info->name);
 
                                 if (send(p_session_state->datafd, flush_completion_frame,
 					p_session_state->flush_complete_event_size, MSG_NOSIGNAL|MSG_DONTWAIT) < 0) {
-                                        log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s",
+                                        log_message(CRITICAL, "%s line: %d: send message to client error: %s name: %s\n",
 								__func__, __LINE__, strerror(errno), sensor_list[i].sensor_info->name);
                                         continue;
                                 }
@@ -906,7 +900,7 @@ static void remove_session_by_fd(int fd)
 {
 	unsigned int i = 0;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	for (i = 0; i < current_sensor_index; i ++) {
 		session_state_t *p, *p_session_state = sensor_list[i].list;
@@ -1060,8 +1054,6 @@ int add_platform_fds(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_num)
 	int i, j;
 	int ret = 0;
 
-	log_message(DEBUG, "[%s] enter", __func__);
-
 	i = sizeof(ish_platf) / sizeof(ish_platform_t);
 	for (j = 0; j < i; j++) {
 		if (ish_platf[j].add_fds) {
@@ -1079,8 +1071,6 @@ void process_platform_fd(int fd)
 {
 	int i, j;
 
-	log_message(DEBUG, "[%s] enter", __func__);
-
 	i = sizeof(ish_platf) / sizeof(ish_platform_t);
 	for (j = 0; j < i; j++)
 		if (ish_platf[j].process_fd)
@@ -1096,7 +1086,7 @@ static void start_sensorhubd()
 	int notifyfds[2];
 	int fixed_maxfd;
 
-	log_message(DEBUG, "[%s] enter", __func__);
+	log_message(DEBUG, "[%s] enter\n", __func__);
 
 	/* two fd_set for I/O multiplexing */
 	FD_ZERO(&listen_fds);
