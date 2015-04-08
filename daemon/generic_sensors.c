@@ -68,8 +68,8 @@
 static int hwFdData = -1;
 static int hwFdEvent = -1;
 
-/* time different between host and firmware, unit is oms*/
-static int32_t time_diff_oms = 0;
+/* time different between host and firmware, unit is us*/
+static int64_t time_diff_us = 0;
 static int64_t last_time_synced = 0;
 #define MIN_SYNC_INTERVAL	8	// min sync interval
 
@@ -86,18 +86,18 @@ static int get_time_diff()
 	if (last_time_synced == 0)
 		last_time_synced = time(NULL);
 
-	if ((time_diff_oms != 0) && (time(NULL) < (last_time_synced + MIN_SYNC_INTERVAL)))
+	if ((time_diff_us != 0) && (time(NULL) < (last_time_synced + MIN_SYNC_INTERVAL)))
 		return 0;
 
 	if ((heci_fd = heci_open()) == -1) {
-		time_diff_oms = 0;
+		time_diff_us = 0;
 		log_message(CRITICAL, "can not open heci! \n");
 		return ERROR_NOT_AVAILABLE;
 	}
 
-	/* get current host time, unit is ns, change to oms */
+	/* get current host time, unit is ns, change to us */
 	clock_gettime(CLOCK_BOOTTIME, &t);
-	cur_time = (t.tv_sec * 8000) + (t.tv_nsec / 125000);
+	cur_time = (t.tv_sec * 1000000) + (t.tv_nsec / 1000);
 
 	memset(req.reserved, 0, sizeof(req.reserved));
 	req.status = 0;
@@ -115,7 +115,7 @@ static int get_time_diff()
 		log_message(CRITICAL, "heci_read failed  ret=%d \n", ret);
 
 	if (resp.header.status) {
-		time_diff_oms = 0;
+		time_diff_us = 0;
 		heci_close(heci_fd);
 		log_message(CRITICAL, "get time from heci failed! \n");
 		return ERROR_NOT_AVAILABLE;
@@ -123,10 +123,10 @@ static int get_time_diff()
 
 	heci_close(heci_fd);
 
-	temp = (int32_t)(cur_time - (resp.time_ms << 3));
+	temp = (int32_t)(cur_time - (resp.time_ms * 1000));
 
-	if ((time_diff_oms == 0) || (temp < time_diff_oms))
-		time_diff_oms = temp;
+	if ((time_diff_us == 0) || (temp < time_diff_us))
+		time_diff_us = temp;
 
 	last_time_synced = time(NULL);
 
@@ -637,6 +637,9 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 		return ERROR_NOT_AVAILABLE;
 	}
 
+	if (get_time_diff())
+		log_message(CRITICAL, "get_time_diff failed \n");
+
 	log_message(DEBUG, "[%s] exit\n", __func__);
 
 	return ERROR_NONE;
@@ -794,9 +797,6 @@ static void generic_sensor_dispatch(int fd)
 	if (fd != hwFdEvent)
 		return;
 
-	if (get_time_diff())
-		log_message(CRITICAL, "get_time_diff failed \n");
-
 	while ((read_count = read(hwFdData, buf, sizeof(buf))) > 0) {
 		int cur_point = 0;
 
@@ -852,12 +852,10 @@ static void generic_sensor_dispatch(int fd)
 					outdata_offset = p_g_sens_inf->data_field[i].exposed_offset;
 
 					memcpy((char *)p_cmd_resp->buf + outdata_offset, tmp_buf + offset, length);
-
-					if (p_g_sens_inf->data_field[i].usage_id == USAGE_SENSOR_DATA_CUSTOM_VALUE_28) {
-						int32_t *ts = (int32_t *)((char *)p_cmd_resp->buf + outdata_offset);
-						*ts = *ts + time_diff_oms;
-					}
 				}
+
+				int64_t *ts = (int64_t *)p_cmd_resp->buf;
+				*ts = *ts + time_diff_us;
 
 				dispatch_streaming(p_cmd_resp);
 

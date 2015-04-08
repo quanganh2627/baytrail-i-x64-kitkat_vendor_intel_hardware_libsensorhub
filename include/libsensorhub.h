@@ -219,7 +219,7 @@ error_t get_sensors_list(ish_usecase_t usecase, void *buf, int *sensor_num);
 
 /* data format of each sensor type */
 struct accel_data {
-	int32_t ts;
+	int64_t ts;
 	int x;
 	int y;
 	int z;
@@ -227,54 +227,54 @@ struct accel_data {
 } __attribute__ ((packed));
 
 struct gyro_raw_data {
-	int32_t ts;
+	int64_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct compass_raw_data {
-	int32_t ts;
+	int64_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct tc_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char state;
 } __attribute__ ((packed));
 
 struct baro_raw_data {
-	int32_t ts;
+	int64_t ts;
 	int p;
 } __attribute__ ((packed));
 
 struct als_raw_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned int lux;
 } __attribute__ ((packed));
 
 struct phy_activity_data {
-	int32_t ts;
+	int64_t ts;
 	int values[7];
 } __attribute__ ((packed));
 
 struct gs_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned short size; //unit is byte
 	short sample[0];
 } __attribute__ ((packed));
 
 struct gesture_hmm_data {
-	int32_t ts;
+	int64_t ts;
 	short prox_gesture; //proximity if not use context arbiter; gesture if use context arbiter
 	unsigned short size; //unit is byte
 	short sample[0];
 } __attribute__ ((packed));
 
 struct pdr_data {
-	int32_t ts;
+	int64_t ts;
 	int x;
 	int y;
 	char floor;
@@ -287,38 +287,38 @@ struct pdr_data {
 } __attribute__ ((packed));
 
 struct gesture_eartouch_data {
-	int32_t ts;
+	int64_t ts;
 	short eartouch;
 } __attribute__ ((packed));
 
 struct ps_phy_data {
-	int32_t ts;
+	int64_t ts;
 	char near;
 } __attribute__ ((packed));
 
 struct gesture_flick_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char flick;
 } __attribute__ ((packed));
 
 struct shaking_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char shaking;
 } __attribute__ ((packed));
 
 struct stap_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char stap;
 } __attribute__ ((packed));
 
 struct pz_data {
-	int32_t ts;
+	int64_t ts;
 	int deltX;
 	int deltY;		/* deltX and deltY: 0.01deg/s */
 }__attribute__ ((packed));
 
 struct rotation_vector_data {
-	int32_t ts;
+	int64_t ts;
         short x;
         short y;
         short z;
@@ -328,7 +328,7 @@ struct rotation_vector_data {
 } __attribute__ ((packed));
 
 struct game_rotation_vector_data {
-	int32_t ts;
+	int64_t ts;
 	short x;
 	short y;
 	short z;
@@ -336,7 +336,7 @@ struct game_rotation_vector_data {
 } __attribute__ ((packed));
 
 struct geomagnetic_rotation_vector_data {
-	int32_t ts;
+	int64_t ts;
         short x;
         short y;
         short z;
@@ -344,21 +344,21 @@ struct geomagnetic_rotation_vector_data {
 } __attribute__ ((packed));
 
 struct gravity_data {
-	int32_t ts;
+	int64_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct linear_accel_data {
-	int32_t ts;
+	int64_t ts;
 	int x;
 	int y;
 	int z;
 } __attribute__ ((packed));
 
 struct uncalib_gyro_data {
-	int32_t ts;
+	int64_t ts;
         int x_uncalib;
 	int x_calib;
         int y_uncalib;
@@ -368,7 +368,7 @@ struct uncalib_gyro_data {
 } __attribute__ ((packed));
 
 struct uncalib_compass_data {
-	int32_t ts;
+	int64_t ts;
         int x_uncalib;
         int x_calib;
         int y_uncalib;
@@ -378,14 +378,14 @@ struct uncalib_compass_data {
 } __attribute__ ((packed));
 
 struct uncalib_acc_data {
-	int32_t ts;
+	int64_t ts;
         int x_uncalib;
         int y_uncalib;
         int z_uncalib;
 } __attribute__ ((packed));
 
 struct motion_detect_data {
-	int32_t ts;
+	int64_t ts;
 	char eventData1;
 	char eventData2;
 	char eventData3;
@@ -394,7 +394,7 @@ struct motion_detect_data {
 } __attribute__ ((packed));
 
 struct orientation_data {
-	int32_t ts;
+	int64_t ts;
 	int tiltx;
 	int tilty;
 	int tiltz;
@@ -403,7 +403,7 @@ struct orientation_data {
 } __attribute__ ((packed));
 
 struct device_orientation_data {
-	int32_t ts;
+	int64_t ts;
 	int w;
 	int x;
 	int y;
@@ -444,22 +444,22 @@ struct lpe_phy_data {
 #define MD_STATE_STILL 2
 
 struct md_data {
-	int32_t ts;
+	int64_t ts;
 	short state;
 } __attribute__ ((packed));
 
 struct device_position_data {
-	int32_t ts;
+	int64_t ts;
 	short pos;
 } __attribute__ ((packed));
 
 struct sm_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char state;
 } __attribute__ ((packed));
 
 struct stepcounter_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char reset_flag;
 	int32_t walk_step_count;
 	int32_t walk_step_duration;
@@ -468,7 +468,7 @@ struct stepcounter_data {
 } __attribute__ ((packed));
 
 struct stepdetector_data {
-	int32_t ts;
+	int64_t ts;
 	int32_t step_event_counter;
 	unsigned char step_type;
 	int32_t step_count;
@@ -476,24 +476,24 @@ struct stepdetector_data {
 } __attribute__ ((packed));
 
 struct instant_activity_data {
-	int32_t ts;
+	int64_t ts;
 	unsigned char typeclass;
 } __attribute__ ((packed));
 
 struct lift_data {
-	int32_t ts;
+	int64_t ts;
 	char look;
 	char vertical;
 } __attribute__ ((packed));
 
 struct dtwgs_data {
-	int32_t ts;
+	int64_t ts;
 	short gsnum;
 	int score;
 } __attribute__ ((packed));
 
 struct tilt_data {
-	int32_t ts;
+	int64_t ts;
 	char tilt_event;
 } __attribute__ ((packed));
 

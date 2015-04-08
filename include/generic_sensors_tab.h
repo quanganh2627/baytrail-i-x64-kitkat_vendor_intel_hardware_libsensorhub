@@ -15,24 +15,29 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_X_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_Y_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_X_AXIS,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_Z_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_Y_AXIS,
 			.exposed = 1,
 			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_STATE,
+			.usage_id = USAGE_SENSOR_DATA_MOTION_ACCELERATION_Z_AXIS,
 			.exposed = 1,
 			.exposed_offset = 16,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_MOTION_STATE,
+			.exposed = 1,
+			.exposed_offset = 20,
 		},
 	},
 	/* index 1 gyrometer*/
@@ -44,19 +49,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_X_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_Y_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_X_AXIS,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_Z_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_Y_AXIS,
 			.exposed = 1,
 			.exposed_offset = 12,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_MOTION_GYROMETER_Z_AXIS,
+			.exposed = 1,
+			.exposed_offset = 16,
 		},
 	},
 	/* index 2 compass*/
@@ -68,19 +78,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_X_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Y_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_X_AXIS,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Z_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Y_AXIS,
 			.exposed = 1,
 			.exposed_offset = 12,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Z_AXIS,
+			.exposed = 1,
+			.exposed_offset = 16,
 		},
 	},
 	/* index 3 light*/
@@ -92,9 +107,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_LIGHT_ILLUMINANCE,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_LIGHT_ILLUMINANCE,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 4 barometer*/
@@ -106,9 +126,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ENVIRONMENT_ATMOSPHERIC_PRESSURE,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_ENVIRONMENT_ATMOSPHERIC_PRESSURE,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 5 proximity*/
@@ -120,9 +145,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_BIOMETRIC_HUMANCE_PRESENCE,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_BIOMETRIC_HUMANCE_PRESENCE,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 6 -RVECT- orientation*/
@@ -134,19 +164,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_QUATERNION,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATE_ORIENTATION_MAGNETIC_ACCURACY,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_QUATERNION,
 			.exposed = 1,
-			.exposed_offset = 12,
+			.exposed_offset = 8,
 		},
 		.data_field[3] = {
+			.usage_id = USAGE_SENSOR_DATE_ORIENTATION_MAGNETIC_ACCURACY,
+			.exposed = 1,
+			.exposed_offset = 16,
+		},
+		.data_field[4] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
-			.exposed_offset = 13,
+			.exposed_offset = 17,
 		},
 	},
 	/* index 7 -LACCL- linear accelerometer */
@@ -158,19 +193,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 16,
 		},
 	},
 	/* index 8 -GRAVI- gravity*/
@@ -182,19 +222,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 16,
 		},
 	},
 	/* index 9 -MOTDT- motion detect*/
@@ -206,29 +251,34 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 5,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
-			.exposed = 1,
-			.exposed_offset = 7,
-		},
-		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
+		},
+		.data_field[3] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.exposed = 1,
+			.exposed_offset = 9,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 10,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.exposed = 1,
+			.exposed_offset = 11,
+		},
+		.data_field[6] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.exposed = 1,
+			.exposed_offset = 12,
 		},
 	},
 	/* index 10 -6AMRV- GEOMAGNETIC_ROTATION_VECTOR*/
@@ -240,24 +290,29 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+		.data_field[3] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 10,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 12,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.exposed = 1,
+			.exposed_offset = 14,
 		},
 	},
 	/* index 11 -SDET- step detector */
@@ -269,24 +324,29 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
-			.exposed_offset = 9,
+			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
 			.exposed_offset = 13,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.exposed = 1,
+			.exposed_offset = 17,
 		},
 	},
 	/* index 12 -SCOUN- step counter */
@@ -298,29 +358,34 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
-			.exposed_offset = 5,
+			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 9,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
 			.exposed_offset = 13,
 		},
 		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
 			.exposed = 1,
 			.exposed_offset = 17,
+		},
+		.data_field[6] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.exposed = 1,
+			.exposed_offset = 21,
 		},
 	},
 	/* index 13 -6AGRV- game rotation vector */
@@ -332,24 +397,29 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
-			.exposed = 1,
-			.exposed_offset = 6,
-		},
-		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
-		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+		.data_field[3] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 10,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 12,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.exposed = 1,
+			.exposed_offset = 14,
 		},
 	},
 	/* index 14 -- Magnetic */
@@ -361,19 +431,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 16,
 		},
 	},
 	/* index 15 -UACC- uncalibrated accelerometer */
@@ -385,19 +460,24 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
+		},
+		.data_field[4] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.exposed = 1,
+			.exposed_offset = 16,
 		},
 	},
 	/* index 16 -UGYRO- uncalibrated gyrometer */
@@ -409,34 +489,39 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
 			.exposed_offset = 16,
 		},
 		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
 			.exposed = 1,
 			.exposed_offset = 20,
 		},
 		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
 			.exposed = 1,
 			.exposed_offset = 24,
+		},
+		.data_field[7] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.exposed = 1,
+			.exposed_offset = 28,
 		},
 	},
 	/* index 17 -UCMPS- uncalibrated compass */
@@ -448,34 +533,39 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
 			.exposed_offset = 16,
 		},
 		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
 			.exposed = 1,
 			.exposed_offset = 20,
 		},
 		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
 			.exposed = 1,
 			.exposed_offset = 24,
+		},
+		.data_field[7] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.exposed = 1,
+			.exposed_offset = 28,
 		},
 	},
 	/* index 18 - STAP */
@@ -487,9 +577,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 19 - LIFT */
@@ -501,14 +596,19 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
+		},
+		.data_field[3] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
-			.exposed_offset = 5,
+			.exposed_offset = 9,
 		},
 	},
 	/* index 20 - PZOOM */
@@ -520,14 +620,19 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
+		},
+		.data_field[3] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.exposed = 1,
+			.exposed_offset = 12,
 		},
 	},
 	/* index 21 - Physical Activity */
@@ -539,39 +644,44 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
 			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
 			.exposed_offset = 16,
 		},
 		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
 			.exposed = 1,
 			.exposed_offset = 20,
 		},
 		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
 			.exposed = 1,
 			.exposed_offset = 24,
 		},
 		.data_field[7] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_7,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
 			.exposed = 1,
 			.exposed_offset = 28,
+		},
+		.data_field[8] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_7,
+			.exposed = 1,
+			.exposed_offset = 32,
 		},
 	},
 	/* index 22 - Instant Activity */
@@ -583,9 +693,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 23 - Significant Motion */
@@ -597,9 +712,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 24 - Shaking */
@@ -611,9 +731,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 25 - Simple device orientation, Terminal */
@@ -625,9 +750,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 26 - Flick */
@@ -639,9 +769,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 	/* index 27 - PDR */
@@ -653,49 +788,54 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_2,
 			.exposed = 1,
-			.exposed_offset = 9,
+			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_3,
 			.exposed = 1,
 			.exposed_offset = 13,
 		},
 		.data_field[5] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_4,
 			.exposed = 1,
 			.exposed_offset = 17,
 		},
 		.data_field[6] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_5,
 			.exposed = 1,
 			.exposed_offset = 21,
 		},
 		.data_field[7] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_7,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_6,
 			.exposed = 1,
 			.exposed_offset = 25,
 		},
 		.data_field[8] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_8,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_7,
 			.exposed = 1,
 			.exposed_offset = 29,
 		},
 		.data_field[9] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_9,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_8,
 			.exposed = 1,
 			.exposed_offset = 33,
+		},
+		.data_field[10] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_9,
+			.exposed = 1,
+			.exposed_offset = 37,
 		},
 	},
 	/* index 28 - Mag Heading */
@@ -707,24 +847,29 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_COMPENSATED_MAGNETIC_NORTH,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_X_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_COMPENSATED_MAGNETIC_NORTH,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Y_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_X_AXIS,
 			.exposed = 1,
 			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Z_AXIS,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Y_AXIS,
 			.exposed = 1,
 			.exposed_offset = 16,
+		},
+		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_MAGNETIC_FLUX_Z_AXIS,
+			.exposed = 1,
+			.exposed_offset = 20,
 		},
 	},
 	/* index 29 - Orientation */
@@ -736,32 +881,37 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_TILT_X,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
 		},
 		.data_field[2] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_TILT_Y,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_TILT_X,
 			.exposed = 1,
 			.exposed_offset = 8,
 		},
 		.data_field[3] = {
-			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_TILT_Z,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_TILT_Y,
 			.exposed = 1,
 			.exposed_offset = 12,
 		},
 		.data_field[4] = {
-			.usage_id = USAGE_SENSOR_DATE_ORIENTATION_MAGNETIC_ACCURACY,
+			.usage_id = USAGE_SENSOR_DATA_ORIENTATION_TILT_Z,
 			.exposed = 1,
-			.exposed_offset = 13,
+			.exposed_offset = 16,
 		},
 		.data_field[5] = {
+			.usage_id = USAGE_SENSOR_DATE_ORIENTATION_MAGNETIC_ACCURACY,
+			.exposed = 1,
+			.exposed_offset = 17,
+		},
+		.data_field[6] = {
 			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
 			.exposed = 1,
-			.exposed_offset = 14,
+			.exposed_offset = 18,
 		},
 	},
-	/* index 30 - Orientation */
+	/* index 30 - Tilt */
 	[30] = {
 		.friend_name = "0x214",
 		.data_field[0] = {
@@ -770,9 +920,14 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 0,
 		},
 		.data_field[1] = {
-			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_27,
 			.exposed = 1,
 			.exposed_offset = 4,
+		},
+		.data_field[2] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 8,
 		},
 	},
 };
