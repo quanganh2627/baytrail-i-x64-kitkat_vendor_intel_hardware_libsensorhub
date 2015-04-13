@@ -356,6 +356,11 @@ static int send_set_property(sensor_state_t *p_sensor_state, session_state_t *p_
 		return ERROR_WRONG_PARAMETER;
 	}
 
+	if (len > MAX_PROP_VALUE_LEN) {
+		log_message(CRITICAL, "%s: property length over the max lenght\n", __func__);
+		return ERROR_WRONG_PARAMETER;
+	}
+
 	cmd.tran_id = 0;
 	cmd.cmd_id = CMD_SET_PROPERTY;
 	cmd.sensor_type = p_sensor_state->sensor_info->sensor_type;
