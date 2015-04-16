@@ -24,9 +24,6 @@
 #include "generic_sensors_tab.h"
 #include "generic_sensor_heci.h"
 
-/* used to broadcast sensorhub is up */
-#define SENSOR_UP_FILE			"/data/sensorsUp"
-
 /* sensor main entry path */
 #define SENSOR_EVENT_PATH		"/dev/sensor-collection"
 #define SENSOR_COL_PATH			"/sys/bus/platform/devices/sensor_collection/"
@@ -570,13 +567,6 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
 
-	/* if file exist - delete it, because sensors aren't up yet */
-	file = fopen(SENSOR_UP_FILE, "r");
-	if (file != NULL) {
-		fclose(file);
-		remove(SENSOR_UP_FILE);
-	}
-
 	try_count = 0;
 	file_num = 0;
 
@@ -639,13 +629,6 @@ int init_generic_sensors(void *p_sensor_list, unsigned int *index)
 	if(hwFdEvent < 0) {
 		log_message(CRITICAL, "%s open event node error, error %s\n",__func__, strerror(errno));
 		return ERROR_NOT_AVAILABLE;
-	}
-
-	file = fopen(SENSOR_UP_FILE, "w");
-	if (file) {
-		log_message(DEBUG, "create sync file %s\n", SENSOR_UP_FILE);
-		fclose(file);
-		system("chmod 666 /data/sensorsUp");
 	}
 
 	log_message(DEBUG, "[%s] exit\n", __func__);
