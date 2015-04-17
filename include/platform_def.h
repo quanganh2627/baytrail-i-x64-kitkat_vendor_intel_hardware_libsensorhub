@@ -6,6 +6,7 @@
 
 /* include platfrom special head file */
 #include "generic_sensors.h"
+#include "lpe.h"
 
 /* this function implemented in main.c and can be used by all platforms */
 void dispatch_streaming(struct cmd_resp *p_cmd_resp);
@@ -29,6 +30,13 @@ ish_platform_t ish_platf[] = {
 		.send_cmd = generic_sensor_send_cmd,
 		.add_fds = add_generic_sensor_fds,
 		.process_fd = process_generic_sensor_fd,
+	},
+	[1] = {
+		.platform_name = "lpe sensor",
+		.init = lpe_init,
+		.send_cmd = NULL,
+		.add_fds = lpe_add_fd,
+		.process_fd = lpe_process_fd,
 	},
 };
 

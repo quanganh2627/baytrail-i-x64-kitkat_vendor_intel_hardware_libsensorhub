@@ -295,6 +295,21 @@ static void dump_tilt_data(int fd)
 			size = size - sizeof(struct tilt_data);
 			p = p + sizeof(struct tilt_data);
 			p_tilt_data = (struct tilt_data *)p;
+                }
+        }
+}
+
+static void dump_lpe_data(int fd)
+{
+	char buf[384]; // sizeof(struct lpe_phy_data) * 32
+	int size = 0;
+	struct lpe_phy_data *p_lpe_phy_data;
+
+	while ((size = read(fd, buf, 384) / sizeof(struct lpe_phy_data)) > 0) {
+		p_lpe_phy_data = (struct lpe_phy_data *)buf;
+		while (size-- > 0) {
+                        printf("LPE: classid=%d dBval=%d timestamp=%lld\n", p_lpe_phy_data->lpe_msg >> 16, p_lpe_phy_data->lpe_msg & 0xFF, p_lpe_phy_data->ts);
+                        p_lpe_phy_data++;
 		}
 	}
 }
@@ -458,6 +473,8 @@ int main(int argc, char **argv)
 		dump_orientation_data(fd);
 	else if (strncmp(sensor_name, "TILT", SNR_NAME_MAX_LEN) == 0)
 		dump_tilt_data(fd);
+	else if (strncmp(sensor_name, "LPE_P", SNR_NAME_MAX_LEN) == 0)
+		dump_lpe_data(fd);
 	else
 		printf("current not supported!\n");
 

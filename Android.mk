@@ -12,8 +12,9 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/include
 LOCAL_SRC_FILES := \
     daemon/main.c \
     daemon/generic_sensors.c \
+    daemon/lpe.cpp \
     utils/utils.c
-LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy libcutils
+LOCAL_SHARED_LIBRARIES := liblog libhardware_legacy libcutils libhardware libaware_client
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 
 #ifeq ($(strip $(INTEL_FEATURE_AWARESERVICE)),true)

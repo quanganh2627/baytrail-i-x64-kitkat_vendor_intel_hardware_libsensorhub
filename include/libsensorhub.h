@@ -436,6 +436,7 @@ struct mag_heading_data {
 } __attribute__ ((packed));
 
 struct lpe_phy_data {
+        int64_t ts;
 	unsigned int lpe_msg;
 } __attribute__ ((packed));
 

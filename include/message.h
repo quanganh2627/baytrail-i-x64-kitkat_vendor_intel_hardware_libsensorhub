@@ -3,6 +3,10 @@
 
 #include "libsensorhub.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef unsigned int session_id_t;
 
 struct sensor_name {
@@ -163,5 +167,9 @@ enum resp_type {
 /* There are helper callbacks which can be used in every platform adapter */
 void dispatch_streaming(struct cmd_resp *p_cmd_resp);
 void dispatch_flush();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

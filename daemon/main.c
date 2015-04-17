@@ -20,6 +20,7 @@
 #include "utils.h"
 #include "message.h"
 #include "platform_def.h"
+#include "lpe.h"
 
 #ifdef ENABLE_CONTEXT_ARBITOR
 #include <awarelibs/libcontextarbitor.h>
@@ -473,6 +474,12 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 		return;
 	}
 
+        if (p_sensor_state->sensor_info->sensor_type == SENSOR_LPE) {
+                lpe_start_streaming(data_rate, buffer_delay);
+                p_session_state->state = ACTIVE;
+                return;
+        }
+
 	if (data_rate != -1)
 		data_rate_arbitered = data_rate_arbiter(p_sensor_state, data_rate,
 						p_session_state, 1);
@@ -540,6 +547,12 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 		p_session_state->state = INACTIVE;
 		return;
 	}
+
+        if (p_sensor_state->sensor_info->sensor_type == SENSOR_LPE) {
+                lpe_stop_streaming();
+                p_session_state->state = INACTIVE;
+                return;
+        }
 
 	data_rate_arbitered = data_rate_arbiter(p_sensor_state,
 						p_session_state->data_rate,
