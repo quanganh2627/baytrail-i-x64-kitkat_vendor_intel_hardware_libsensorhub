@@ -364,7 +364,7 @@ static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 
 	snprintf(path, sizeof(path), SENSOR_NAME_PATH, serial_num);
 	ret = read_sysfs_node(path, buf, sizeof(buf));
-	log_message(DEBUG, "open path %s - %s\n", path, buf);
+	log_message(CRITICAL, "open path %s - %s\n", path, buf);
 	if (ret < 0) {
 		log_message(CRITICAL, "read path %s failed\n", path);
 		return ERROR_NOT_AVAILABLE;
@@ -382,7 +382,7 @@ static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 		}
 	}
 
-	log_message(DEBUG, "read sensor name %s\n", buf);
+	log_message(CRITICAL, "read sensor name %s\n", buf);
 
 	sensor_num = sizeof(g_sensor_info) / sizeof(sensor_info_t);
 	for (cur_sensor = 0; cur_sensor < sensor_num; cur_sensor++) {

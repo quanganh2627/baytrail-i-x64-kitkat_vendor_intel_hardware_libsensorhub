@@ -58,6 +58,7 @@ typedef enum {
 	SENSOR_UNCAL_GYRO,
 	SENSOR_UNCAL_ACC,
 	SENSOR_MOTION_DETECT,
+	SENSOR_TILT_DETECT,
 
 	SENSOR_BIST,
 
@@ -490,6 +491,12 @@ struct dtwgs_data {
 	short gsnum;
 	int score;
 } __attribute__ ((packed));
+
+struct tilt_data {
+	int32_t ts;
+	char tilt_event;
+} __attribute__ ((packed));
+
 #ifdef __cplusplus
 }
 #endif

@@ -69,7 +69,7 @@ static struct sensor_name sensor_type_to_name_str[SENSOR_MAX] = {
 	{"PEDOM"}, {"MAGHD"}, {"SHAKI"}, {"MOVDT"}, {"STAP"}, {"PZOOM"}, {"LTVTL"}, {"DVPOS"},
 	{"SCOUN"}, {"SDET"}, {"SIGMT"}, {"6AGRV"}, {"6AMRV"}, {"6DOFG"}, {"6DOFM"}, {"LIFT"},
 	{"DTWGS"}, {"GSPX"}, {"GSETH"}, {"PDR"}, {"ISACT"},
-	{"UCMPS"}, {"UGYRO"}, {"UACC"}, {"MOTDT"},
+	{"UCMPS"}, {"UGYRO"}, {"UACC"}, {"MOTDT"}, {"TILT"},
 	{"BIST"}
 };
 

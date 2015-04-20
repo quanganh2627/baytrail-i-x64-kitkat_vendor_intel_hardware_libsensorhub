@@ -278,6 +278,27 @@ static void dump_orientation_data(int fd)
 	}
 }
 
+static void dump_tilt_data(int fd)
+{
+	char buf[512];
+	int size = 0;
+	struct tilt_data *p_tilt_data;
+
+	while ((size = read(fd, buf, 512)) > 0) {
+		char *p = buf;
+
+		p_tilt_data = (struct tilt_data *)buf;
+		while (size > 0) {
+		printf("tilt is: %d, size is %d \n",
+					p_tilt_data->tilt_event,
+					size);
+			size = size - sizeof(struct tilt_data);
+			p = p + sizeof(struct tilt_data);
+			p_tilt_data = (struct tilt_data *)p;
+		}
+	}
+}
+
 static void usage()
 {
 	printf("\n Usage: sensorhub_client [OPTION...] \n");
@@ -295,7 +316,7 @@ static void usage()
 		"			6DOFM, 6dofam;               LIFT, lift;                   DTWGS, dtwgs;\n"
 		"			GSPX, gesture hmm;           GSETH, gesture eartouch;            PDR, \n"
 		"			ISACT, instant activity	     UCMPS, uncalibrated compass         UGYRO, uncalibrated gyro\n"
-		"			UACC, uncalibrated accelerometer,  MOTDT, move detector\n");
+		"			UACC, uncalibrated accelerometer,  MOTDT, move detector          TILT, tilt sensor\n");
 	printf("  -r, --date-rate	unit is Hz\n");
 	printf("  -d, --buffer-delay	unit is ms, i.e. 1/1000 second\n");
 	printf("  -p, --property-set	format: <property id>,<property value>\n");
@@ -435,6 +456,8 @@ int main(int argc, char **argv)
 		dump_lift_data(fd);
 	else if (strncmp(sensor_name, "ORIEN", SNR_NAME_MAX_LEN) == 0)
 		dump_orientation_data(fd);
+	else if (strncmp(sensor_name, "TILT", SNR_NAME_MAX_LEN) == 0)
+		dump_tilt_data(fd);
 	else
 		printf("current not supported!\n");
 

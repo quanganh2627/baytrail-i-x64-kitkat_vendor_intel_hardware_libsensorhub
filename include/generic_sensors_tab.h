@@ -761,6 +761,20 @@ generic_sensor_info_t g_info[] = {
 			.exposed_offset = 14,
 		},
 	},
+	/* index 30 - Orientation */
+	[30] = {
+		.friend_name = "0x214",
+		.data_field[0] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_28,
+			.exposed = 1,
+			.exposed_offset = 0,
+		},
+		.data_field[1] = {
+			.usage_id = USAGE_SENSOR_DATA_CUSTOM_VALUE_1,
+			.exposed = 1,
+			.exposed_offset = 4,
+		},
+	},
 };
 
 sensor_info_t g_sensor_info[] = {
@@ -1127,6 +1141,19 @@ sensor_info_t g_sensor_info[] = {
 		.resolution = 1.0,
 		.power = 0.006,
 		.plat_data = &g_info[28],
+	},
+	[28] = {
+		.name = "TILT",
+		.vendor = "Intel Inc.",
+		.sensor_type = SENSOR_TILT_DETECT,
+		.use_case = USE_CASE_HAL,
+		.version = 1,
+		.axis_num = 1,
+		.axis_scale = {1},
+		.max_range = 1,
+		.resolution = 1.0,
+		.power = 0.006,
+		.plat_data = &g_info[30],
 	},
 };
 
