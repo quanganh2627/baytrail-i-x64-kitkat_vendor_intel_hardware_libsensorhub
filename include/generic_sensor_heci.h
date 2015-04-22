@@ -32,18 +32,17 @@ struct heci_connect_client_data {
 	};
 };
 
-typedef struct
-{
+struct smhi_msg_header {
 	uint8_t command : 7;
 	uint8_t is_response : 1;
 	uint8_t reserved[2];
 	uint8_t status;
-} SMHI_MSG_HEADER;
+} __attribute__ ((packed));
 
-typedef struct {
-	SMHI_MSG_HEADER header;
+struct smhi_get_time_response {
+	struct smhi_msg_header header;
 	uint64_t time_ms;
-} SMHI_GET_TIME_RESPONSE;
+} __attribute__ ((packed));
 
 int heci_open()
 {
