@@ -78,12 +78,13 @@ static int64_t last_time_synced = 0;
 
 static int get_time_diff()
 {
-	SMHI_MSG_HEADER req;
-	SMHI_GET_TIME_RESPONSE resp;
+	struct smhi_msg_header req;
+	struct smhi_get_time_response resp;
 	struct timespec t;
 	uint64_t cur_time;
 	int32_t temp;
 	int heci_fd = -1;
+	int ret;
 
 	if (last_time_synced == 0)
 		last_time_synced = time(NULL);
@@ -107,10 +108,15 @@ static int get_time_diff()
 	req.command = SMHI_GET_TIME;
 
 	/* send the GET_TIME cmd */
-	heci_write(heci_fd, (void *)&req, sizeof(req));
+	ret = heci_write(heci_fd, (void *)&req, sizeof(req));
+	if (ret < 0)
+		log_message(CRITICAL, "heci_write failed ret=%d \n", ret);
 
 	/* get current firmware time, unit is ms */
-	heci_read(heci_fd, (void *)&resp, sizeof(resp));
+	ret = heci_read(heci_fd, (void *)&resp, sizeof(resp));
+	if (ret < 0)
+		log_message(CRITICAL, "heci_read failed  ret=%d \n", ret);
+
 	if (resp.header.status) {
 		time_diff_oms = 0;
 		heci_close(heci_fd);
