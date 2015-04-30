@@ -66,9 +66,11 @@
 #define MAX_PATH_LEN			256
 #define MAX_VALUE_LEN			64
 
+static int timestamp_mode = 0;
+
 static void *saved_sensor_list = NULL;
-unsigned int index_start;
-unsigned int index_end;
+static unsigned int index_start;
+static unsigned int index_end;
 
 static int hwFdData = -1;
 static int hwFdEvent = -1;
@@ -81,8 +83,8 @@ void sig_handler(int sig)
 	write(reset_notifyfds[1], &sig, sizeof(sig));
 }
 
-/* time different between host and firmware, unit is us*/
-static int64_t time_diff_us = 0;
+/* time different between host and firmware, unit is ns*/
+static int64_t time_diff_ns = 0;
 
 static int get_time_diff()
 {
@@ -94,14 +96,14 @@ static int get_time_diff()
 	int ret;
 
 	if ((heci_fd = heci_open()) == -1) {
-		time_diff_us = 0;
+		time_diff_ns = 0;
 		log_message(CRITICAL, "can not open heci! \n");
 		return ERROR_NOT_AVAILABLE;
 	}
 
-	/* get current host time, unit is ns, change to us */
+	/* get current host time, unit is ns */
 	clock_gettime(CLOCK_BOOTTIME, &t);
-	cur_time = (t.tv_sec * 1000000) + (t.tv_nsec / 1000);
+	cur_time = (t.tv_sec * 1000000000) + t.tv_nsec;
 
 	memset(req.reserved, 0, sizeof(req.reserved));
 	req.status = 0;
@@ -119,7 +121,7 @@ static int get_time_diff()
 		log_message(CRITICAL, "heci_read failed  ret=%d \n", ret);
 
 	if (resp.header.status) {
-		time_diff_us = 0;
+		time_diff_ns = 0;
 		heci_close(heci_fd);
 		log_message(CRITICAL, "get time from heci failed! \n");
 		return ERROR_NOT_AVAILABLE;
@@ -127,7 +129,12 @@ static int get_time_diff()
 
 	heci_close(heci_fd);
 
-	time_diff_us = (int32_t)(cur_time - (resp.time_ms * 1000));
+	time_diff_ns = cur_time - (resp.time_ms * 1000000);
+
+	if (timestamp_mode)
+		log_message(CRITICAL, "Current ISHFW timestamp is 64bit\n");
+	else
+		log_message(CRITICAL, "Current ISHFW timestamp is 32bit\n");
 
 	return ERROR_NONE;
 }
@@ -498,6 +505,9 @@ static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 					log_message(DEBUG, "path %s value %s\n", tmp_path, buf);
 					sscanf(buf, "%u", &value);
 					datafield->length = value;
+
+					if (datafield->usage_id == USAGE_SENSOR_DATA_CUSTOM_VALUE_27 && datafield->length)
+						timestamp_mode = 1;
 				}
 
 				for (cur_index = 0; cur_index < data_field_num; cur_index++) {
@@ -938,6 +948,11 @@ static unsigned int get_real_sensor_data_size(sensor_info_t *p_sens_inf)
 		if (p_g_sens_inf->data_field[i].exposed)
 			data_len += p_g_sens_inf->data_field[i].length;
 
+	// If current ish only support 32bit timestamp, we need add 4bytes.
+	// Because sensorhubd expected time data field is 64bit.
+	if (timestamp_mode == 0)
+		data_len += 4;
+
 	return data_len;
 }
 
@@ -991,6 +1006,8 @@ static void generic_sensor_dispatch(int fd)
 				if (p_cmd_resp == NULL)
 					continue;
 
+				memset((void*)p_cmd_resp, 0, sizeof(struct cmd_resp) + real_data_len);
+
 				p_cmd_resp->cmd_type = RESP_STREAMING;
 				p_cmd_resp->data_len = real_data_len;
 				p_cmd_resp->sensor_type = p_sens_inf->sensor_type;
@@ -1008,7 +1025,10 @@ static void generic_sensor_dispatch(int fd)
 				}
 
 				int64_t *ts = (int64_t *)p_cmd_resp->buf;
-				*ts = *ts + time_diff_us;
+				if (timestamp_mode)
+					*ts = *ts * 1000 + time_diff_ns;
+				else
+					*ts = *ts * 125000 + time_diff_ns;
 
 				dispatch_streaming(p_cmd_resp);
 
