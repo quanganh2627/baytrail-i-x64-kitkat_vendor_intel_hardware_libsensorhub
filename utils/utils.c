@@ -30,6 +30,7 @@ void set_log_file(const char *fname)
 	strcpy(log_file, fname);
 }
 
+#define DATA_LOG 0
 void log_message(const message_level level, const char *char_ptr, ...)
 {
 	char buffer[MAX_LOG_SIZE];
@@ -49,6 +50,7 @@ void log_message(const message_level level, const char *char_ptr, ...)
 	if (level > current_level)
 		return;
 
+#if DATA_LOG
 	FILE *logf = fopen(log_file, "a");
 	if (logf) {
 		fprintf(logf, "%ld: %d %s", time(NULL), level, buffer);
@@ -56,6 +58,7 @@ void log_message(const message_level level, const char *char_ptr, ...)
 	} else {
 		printf("Open log file failed, errno is %d \n", errno);
 	}
+#endif
 }
 
 int max_common_factor(int data1, int data2)
@@ -84,24 +87,3 @@ int least_common_multiple(int data1, int data2)
 	return ((data1 * data2) / m);
 }
 
-/* return 0 if not first; 1 if first */
-int is_first_instance()
-{
-	int fd, count;
-	char buf[8];
-
-	system("pidof sensorhubd | wc -w > /data/pids");
-
-	fd = open("/data/pids", 0);
-
-	read(fd, buf, 8);
-	/* To avoid the buffer overflow */
-	buf[7] = '\0';
-	count = atoi(buf);
-
-	close(fd);
-
-	if (count > 1)
-		return 0;
-	return 1;
-}

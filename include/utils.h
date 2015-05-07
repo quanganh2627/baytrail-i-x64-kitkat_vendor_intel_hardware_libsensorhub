@@ -20,8 +20,6 @@ int max_common_factor(int data1, int data2);
 
 int least_common_multiple(int data1, int data2);
 
-int is_first_instance();
-
 #ifdef __cplusplus
 }
 #endif

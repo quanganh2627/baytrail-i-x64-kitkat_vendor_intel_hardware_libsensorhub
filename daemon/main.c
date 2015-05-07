@@ -33,15 +33,12 @@
 #define SLEEP_NODE "/sys/power/wait_for_fb_sleep"
 
 static const char *log_file = "/data/sensorhubd.log";
-static const char *WAKE_LOCK_ID = "Sensorhubd";
 
 #define IA_BIT_CFG_AS_WAKEUP_SRC ((unsigned short)(0x1 << 0))
 
 /* The Unix socket file descriptor */
 static int sockfd = -1;    // main upper half socket  (sensorhubd)
-static int notifyfd = -1;  //upper half - S3/S0 Notify -union of both above
 
-static int screen_state;
 static int enable_debug_data_rate = 0;
 
 sensor_state_t sensor_list[MAX_SENSOR_INDEX];
@@ -973,105 +970,6 @@ static void remove_session_by_fd(int fd)
         }
 }
 
-static void *screen_state_thread(void *cookie)
-{
-	int fd, err;
-	char buf;
-	pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-	while(1) {
-		fd = open(SLEEP_NODE, O_RDONLY, 0);
-		do {
-			err = read(fd, &buf, 1);
-			log_message(DEBUG,"wait for sleep err: %d, errno: %d\n", err, errno);
-		} while (err < 0 && errno == EINTR);
-
-		pthread_mutex_lock(&update_mutex);
-		screen_state = 0;
-		pthread_mutex_unlock(&update_mutex);
-
-		write(notifyfd, "0", 1);
-
-		close(fd);
-
-		fd = open(WAKE_NODE, O_RDONLY, 0);
-		do {
-			err = read(fd, &buf, 1);
-			log_message(DEBUG,"wait for wake err: %d, errno: %d\n", err, errno);
-		} while (err < 0 && errno == EINTR);
-
-		pthread_mutex_lock(&update_mutex);
-		screen_state = 1;
-		pthread_mutex_unlock(&update_mutex);
-
-		write(notifyfd, "0", 1);
-
-		close(fd);
-	}
-	return NULL;
-}
-
-static void handle_no_stop_no_report()
-{
-	unsigned int i;
-	int value;
-	session_state_t *p;
-
-	for (i = 0; i < current_sensor_index; i ++) {
-		if (strncmp(sensor_list[i].sensor_info->name, "COMPC", SNR_NAME_MAX_LEN) == 0 ||
-			strncmp(sensor_list[i].sensor_info->name, "GYROC", SNR_NAME_MAX_LEN) == 0)
-			continue;
-
-		p = sensor_list[i].list;
-
-		while (p != NULL) {
-			if ((p->state == ALWAYS_ON) && (p->flag == 1)) {
-				//TODO: send set_property to ish fw
-				if (i == SENSOR_PEDOMETER) {
-					if (screen_state == 0) {
-						value = 1;
-						send_set_property(&sensor_list[i], NULL, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
-					} else {
-						value = 0;
-						send_set_property(&sensor_list[i], NULL, PROP_STOP_REPORTING, 4, (unsigned char *)&value);
-					}
-				}
-			}
-			p = p->next;
-		}
-
-	}
-}
-
-
-int add_notify_fd(fd_set *fds, int *notifyfds)
-{
-	int ret;
-	int maxfd = sockfd;
-
-	log_message(DEBUG, "[%s] enter", __func__);
-
-	FD_SET(sockfd, fds);
-
-	/* add notifyfds[0] to listen_fds */
-	ret = pipe(notifyfds);
-	if (ret < 0) {
-		log_message(CRITICAL, "sensorhubd failed to create pipe \n");
-		exit(EXIT_FAILURE);
-	}
-
-	log_message(DEBUG,"sleep-wake fd is :%d\n", notifyfds[0]);
-
-	notifyfd = notifyfds[1];
-
-	FD_SET(notifyfds[0],fds);
-
-	if (notifyfds[0] > maxfd)
-		maxfd = notifyfds[0];
-
-	return maxfd;
-}
-
 int add_platform_fds(int maxfd, void *read_fds, int *hw_fds, int *hw_fds_num)
 {
 	int i, j;
@@ -1106,7 +1004,6 @@ static void start_sensorhubd()
 {
 	fd_set listen_fds, read_fds;
 	pthread_t t;
-	int notifyfds[2];
 	int fixed_maxfd;
 
 	log_message(DEBUG, "[%s] enter\n", __func__);
@@ -1115,10 +1012,8 @@ static void start_sensorhubd()
 	FD_ZERO(&listen_fds);
 	FD_ZERO(&read_fds);
 
-	fixed_maxfd = add_notify_fd(&listen_fds, notifyfds);
-
-	//pthread_create(&t, NULL, screen_state_thread, NULL);
-	//log_message(DEBUG,"after sleep thread launch\n");
+	FD_SET(sockfd, &listen_fds);
+	fixed_maxfd = sockfd;
 
 	while (1) {
 		int hw_fds[255], hw_fds_num;
@@ -1173,19 +1068,6 @@ static void start_sensorhubd()
 			FD_CLR(sockfd, &read_fds);
 		}
 
-
-		/* handle wake/sleep notification */
-		if (FD_ISSET(notifyfds[0], &read_fds)) {
-			char buf[20];
-			int ret;
-			ret = read(notifyfds[0], buf, 20);
-			if (ret > 0)
-				log_message(DEBUG, "Get notification,buf is %s, screen state is %d \n", buf, screen_state);
-
-			FD_CLR(notifyfds[0], &read_fds);
-
-		}
-
 		/* handle request from clients */
 		for (i = maxfd; i >= 0; i--) {
 			char message[MAX_MESSAGE_LENGTH];
@@ -1224,9 +1106,6 @@ static void usage()
 int main(int argc, char **argv)
 {
 	int log_level = WARNING;
-
-	if (is_first_instance() != 1)
-		exit(0);
 
 	set_log_file(log_file);
 	set_log_level((message_level)log_level);
