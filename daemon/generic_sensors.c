@@ -79,21 +79,30 @@ static int reset_notifyfds[2];
 
 void sig_handler(int sig)
 {
-	log_message(CRITICAL, "Receive a signel %d! \n", sig);
+	log_message(INFO, "Receive a signel %d! \n", sig);
 	write(reset_notifyfds[1], &sig, sizeof(sig));
 }
 
 /* time different between host and firmware, unit is ns*/
 static int64_t time_diff_ns = 0;
 
+static uint64_t get_current_time_ns()
+{
+	struct timespec t;
+
+	clock_gettime(CLOCK_BOOTTIME, &t);
+
+	return ((t.tv_sec * 1000000000) + t.tv_nsec);
+}
+
 static int get_time_diff()
 {
 	struct smhi_msg_header req;
 	struct smhi_get_time_response resp;
-	struct timespec t;
 	uint64_t cur_time;
 	int heci_fd = -1;
 	int ret;
+	int i;
 
 	if ((heci_fd = heci_open()) == -1) {
 		time_diff_ns = 0;
@@ -101,40 +110,52 @@ static int get_time_diff()
 		return ERROR_NOT_AVAILABLE;
 	}
 
-	/* get current host time, unit is ns */
-	clock_gettime(CLOCK_BOOTTIME, &t);
-	cur_time = (t.tv_sec * 1000000000) + t.tv_nsec;
+	time_diff_ns = 0;
 
-	memset(req.reserved, 0, sizeof(req.reserved));
-	req.status = 0;
-	req.is_response = 0;
-	req.command = SMHI_GET_TIME;
+	for (i = 0; i < 10; i++) {
+		int64_t temp_diff = 0;
 
-	/* send the GET_TIME cmd */
-	ret = heci_write(heci_fd, (void *)&req, sizeof(req));
-	if (ret < 0)
-		log_message(CRITICAL, "heci_write failed ret=%d \n", ret);
+		/* get current host time, unit is ns */
+		cur_time = get_current_time_ns();
 
-	/* get current firmware time, unit is ms */
-	ret = heci_read(heci_fd, (void *)&resp, sizeof(resp));
-	if (ret < 0)
-		log_message(CRITICAL, "heci_read failed  ret=%d \n", ret);
+		memset(req.reserved, 0, sizeof(req.reserved));
+		req.status = 0;
+		req.is_response = 0;
+		req.command = SMHI_GET_TIME;
 
-	if (resp.header.status) {
-		time_diff_ns = 0;
-		heci_close(heci_fd);
-		log_message(CRITICAL, "get time from heci failed! \n");
-		return ERROR_NOT_AVAILABLE;
+		/* send the GET_TIME cmd */
+		ret = heci_write(heci_fd, (void *)&req, sizeof(req));
+		if (ret < 0)
+			log_message(CRITICAL, "heci_write failed ret=%d \n", ret);
+
+		/* get current firmware time, unit is ms */
+		ret = heci_read(heci_fd, (void *)&resp, sizeof(resp));
+		if (ret < 0)
+			log_message(CRITICAL, "heci_read failed  ret=%d \n", ret);
+
+		if (resp.header.status) {
+			time_diff_ns = 0;
+			heci_close(heci_fd);
+			log_message(CRITICAL, "get time from heci failed! \n");
+			return ERROR_NOT_AVAILABLE;
+		}
+
+		temp_diff = cur_time - (resp.time_ms * 1000000);
+
+		log_message(DEBUG, "get time diff %lld! \n", temp_diff);
+
+		if (time_diff_ns == 0 || time_diff_ns > temp_diff)
+			time_diff_ns = temp_diff;
 	}
+
+	log_message(INFO, "current time diff %lld! \n", time_diff_ns);
 
 	heci_close(heci_fd);
 
-	time_diff_ns = cur_time - (resp.time_ms * 1000000);
-
 	if (timestamp_mode)
-		log_message(CRITICAL, "Current ISHFW timestamp is 64bit\n");
+		log_message(INFO, "Current ISHFW timestamp is 64bit\n");
 	else
-		log_message(CRITICAL, "Current ISHFW timestamp is 32bit\n");
+		log_message(INFO, "Current ISHFW timestamp is 32bit\n");
 
 	return ERROR_NONE;
 }
@@ -260,7 +281,9 @@ static int set_sensor_property(unsigned int serial_num, const char *property_nam
 		return -1;
 	}
 
+	log_message(INFO, "[%lld]before write value %s into entry %s \n", get_current_time_ns(), value, path);
 	ret = write(fd, value, len);
+	log_message(INFO, "[%lld]after value %s into entry %s \n", get_current_time_ns(), value, path);
 
 	close(fd);
 
@@ -290,7 +313,9 @@ static int get_sensor_property(unsigned int serial_num, const char *property_nam
 		return ERROR_NOT_AVAILABLE;
 	}
 
+	log_message(INFO, "[%lld]before read entry %s value \n", get_current_time_ns(), path);
 	ret = read(fd, value, len);
+	log_message(INFO, "[%lld]after read entry %s value \n", get_current_time_ns(), path);
 
 	close(fd);
 
@@ -376,7 +401,7 @@ static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 
 	snprintf(path, sizeof(path), SENSOR_NAME_PATH, serial_num);
 	ret = read_sysfs_node(path, buf, sizeof(buf));
-	log_message(CRITICAL, "open path %s - %s\n", path, buf);
+	log_message(DEBUG, "open path %s - %s\n", path, buf);
 	if (ret < 0) {
 		log_message(CRITICAL, "read path %s failed\n", path);
 		return ERROR_NOT_AVAILABLE;
@@ -394,7 +419,7 @@ static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 		}
 	}
 
-	log_message(CRITICAL, "read sensor name %s\n", buf);
+	log_message(DEBUG, "read sensor name %s\n", buf);
 
 	sensor_num = sizeof(g_sensor_info) / sizeof(sensor_info_t);
 	for (cur_sensor = 0; cur_sensor < sensor_num; cur_sensor++) {
@@ -412,8 +437,7 @@ static int ish_add_sensor(sensor_state_t *sensor_list, char *dir_name)
 		if(!strncmp(buf, g_tmp->friend_name, strlen(g_tmp->friend_name))) {
 			DIR *dp;
 
-			log_message(DEBUG, "match a sensor name %d\n", serial_num);
-			log_message(CRITICAL, "match a sensor name %s, serial %x\n", buf, serial_num);
+			log_message(INFO, "match a sensor name %s, serial %x\n", buf, serial_num);
 
 			g_tmp->serial_num = serial_num;
 
@@ -767,14 +791,11 @@ static int reenum_generic_sensors(void *p_sensor_list, unsigned int start, unsig
 					if (!strncmp(buf, g_tmp->friend_name, strlen(g_tmp->friend_name))) {
 						check_num++;
 
-						log_message(CRITICAL, "reenum sensor serial_num matched from %x to %x\n",
+						log_message(INFO, "reenum sensor serial_num matched from %x to %x\n",
 												g_tmp->serial_num, serial_num);
 
-						if (g_tmp->serial_num != serial_num) {
-							log_message(CRITICAL, "sensor serial_num changed from %x to %x\n",
-												g_tmp->serial_num, serial_num);
+						if (g_tmp->serial_num != serial_num)
 							g_tmp->serial_num = serial_num;
-						}
 
 						g_tmp->installed = 1;
 
@@ -799,7 +820,7 @@ static int reenum_generic_sensors(void *p_sensor_list, unsigned int start, unsig
 	}
 
 	if (check_num != num)
-		log_message(DEBUG, "Sensor number not match after re-enum (org:%d, now:%d)\n", num, check_num);
+		log_message(CRITICAL, "Sensor number not match after re-enum (org:%d, now:%d)\n", num, check_num);
 
 	if (check_num == 0)
 		return ERROR_NOT_AVAILABLE;
@@ -829,6 +850,8 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 			char report_interval_str[MAX_VALUE_LEN];
 			char report_delay_str[MAX_VALUE_LEN];
 
+			get_time_diff();
+
 			if (enable_sensor(serial_num, 1, sensor_info->is_wake_sensor) != ERROR_NONE)
 				return ERROR_NOT_AVAILABLE;
 
@@ -845,8 +868,13 @@ int generic_sensor_send_cmd(struct cmd_send *cmd)
 
 		case CMD_STOP_STREAMING:
 		{
+			char report_interval_str[MAX_VALUE_LEN];
+
 			if (enable_sensor(serial_num, 0, sensor_info->is_wake_sensor) != ERROR_NONE)
 				return ERROR_NOT_AVAILABLE;
+
+			snprintf(report_interval_str, sizeof(report_interval_str), "%d", 0);
+			set_sensor_property(serial_num, PROP_INTERVAL, report_interval_str, strlen(report_interval_str));
 
 			break;
 		}
@@ -1024,11 +1052,15 @@ static void generic_sensor_dispatch(int fd)
 					memcpy((char *)p_cmd_resp->buf + outdata_offset, tmp_buf + offset, length);
 				}
 
-				int64_t *ts = (int64_t *)p_cmd_resp->buf;
+				uint64_t *ts = (uint64_t *)p_cmd_resp->buf;
 				if (timestamp_mode)
 					*ts = *ts * 1000 + time_diff_ns;
 				else
 					*ts = *ts * 125000 + time_diff_ns;
+
+				if (*ts > get_current_time_ns()) {
+					*ts = get_current_time_ns();
+				}
 
 				dispatch_streaming(p_cmd_resp);
 

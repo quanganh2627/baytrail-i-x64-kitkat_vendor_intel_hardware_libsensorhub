@@ -7,6 +7,7 @@ extern "C" {
 typedef enum {
 	CRITICAL,
 	WARNING,
+	INFO,
 	DEBUG,
 	MAX_LEVEL
 } message_level;

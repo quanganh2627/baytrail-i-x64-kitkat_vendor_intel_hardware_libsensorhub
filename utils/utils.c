@@ -15,7 +15,7 @@
 
 static char log_file[255];
 
-static message_level current_level = DEBUG;
+static message_level current_level = INFO;
 
 void set_log_level(message_level log_level)
 {
@@ -36,6 +36,9 @@ void log_message(const message_level level, const char *char_ptr, ...)
 	char buffer[MAX_LOG_SIZE];
 	va_list list_ptr;
 
+	if (level > current_level)
+		return;
+
 	va_start(list_ptr, char_ptr);
 	vsnprintf(buffer, MAX_LOG_SIZE, char_ptr, list_ptr);
 	va_end(list_ptr);
@@ -44,11 +47,10 @@ void log_message(const message_level level, const char *char_ptr, ...)
 		ALOGD("sensorhub: %s", buffer);
 	else if (level == WARNING)
 		ALOGW("sensorhub: %s", buffer);
+	else if (level == INFO)
+		ALOGI("sensorhub: %s", buffer);
 	else
 		ALOGE("sensorhub: %s", buffer);
-
-	if (level > current_level)
-		return;
 
 #if DATA_LOG
 	FILE *logf = fopen(log_file, "a");

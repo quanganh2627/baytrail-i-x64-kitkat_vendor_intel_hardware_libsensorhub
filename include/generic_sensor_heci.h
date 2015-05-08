@@ -51,14 +51,15 @@ int heci_open()
 	struct heci_connect_client_data connect_data;
 
 	fd = open("/dev/ish", O_RDWR);
-	if ( fd == -1 )
-		printf("can not open /dev/ish\n");
+	if ( fd != -1 ) {
+		memcpy(&(connect_data.in_client_uuid),&(SMHI_guid),sizeof(GUID));
 
-	memcpy(&(connect_data.in_client_uuid),&(SMHI_guid),sizeof(GUID));
-
-	result = ioctl(fd, IOCTL_HECI_CONNECT_CLIENT, &connect_data);
-	if (result)
-		close(fd);
+		result = ioctl(fd, IOCTL_HECI_CONNECT_CLIENT, &connect_data);
+		if (result) {
+			close(fd);
+			fd = -1;
+		}
+	}
 
 	return fd;
 }

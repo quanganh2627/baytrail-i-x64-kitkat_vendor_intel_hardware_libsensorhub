@@ -486,7 +486,7 @@ static void start_streaming(sensor_state_t *p_sensor_state,
 	buffer_delay_arbitered = buffer_delay_arbiter(p_sensor_state, buffer_delay,
 						p_session_state, 1);
 
-	log_message(DEBUG, "CMD_START_STREAMING, data_rate_arbitered "
+	log_message(INFO, "CMD_START_STREAMING, data_rate_arbitered "
 				"is %d, buffer_delay_arbitered is %d \n",
 				data_rate_arbitered, buffer_delay_arbitered);
 
@@ -590,7 +590,7 @@ static void stop_streaming(sensor_state_t *p_sensor_state,
 		send_control_cmd(&cmd);
 	}
 
-	log_message(DEBUG, "CMD_STOP_STREAMING, data_rate_arbitered is %d, "
+	log_message(INFO, "CMD_STOP_STREAMING, data_rate_arbitered is %d, "
 			"buffer_delay_arbitered is %d \n", data_rate_arbitered,
 			buffer_delay_arbitered);
 }
@@ -821,7 +821,7 @@ static void reset_sensorhub()
 		}
 	}
 
-	log_message(DEBUG,"after reset sensor num %d\n", current_sensor_index);
+	log_message(INFO, "after reset sensor num %d\n", current_sensor_index);
 
 	/* create bist sensor state */
 	sensor_list[current_sensor_index++].sensor_info = &bist_info;
@@ -961,7 +961,7 @@ static void remove_session_by_fd(int fd)
 			}
 #endif
 
-			log_message(DEBUG, "session with datafd %d, ctlfd %d "
+			log_message(INFO, "session with datafd %d, ctlfd %d "
 				"is removed \n", p_session_state->datafd,
 				p_session_state->ctlfd);
 			free(p_session_state);
@@ -1105,7 +1105,7 @@ static void usage()
 
 int main(int argc, char **argv)
 {
-	int log_level = WARNING;
+	int log_level = INFO;
 
 	set_log_file(log_file);
 	set_log_level((message_level)log_level);
